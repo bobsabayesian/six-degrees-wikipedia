@@ -706,6 +706,7 @@ function renderSVG(graph) {
     }
   }
 
+  const paperRect = chk('paperInSvg') ? `<rect inkscape:label="paper" width="${W}" height="${H}" fill="${esc($('#paperColor').value || '#ffffff')}" stroke="none"/>\n` : '';
   const layers = pens.map((p, i) => {
     const items = buckets.get(p.id);
     if (!items.length) return '';
@@ -723,11 +724,13 @@ function renderSVG(graph) {
 </rdf:Description>
 </rdf:RDF>
 </metadata>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n${meta}\n${layers}\n</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n${meta}\n${paperRect}${layers}\n</svg>`;
 }
 
+const applyPaperColor = () => { $('#paper').style.background = $('#paperColor').value || '#ffffff'; };
 function show(graph) {
   const paper = $('#paper');
+  applyPaperColor();
   paper.innerHTML = renderSVG(graph);
   paper.style.setProperty('--ar', num('pw') / num('ph'));
   if (graph === state.graph && !graph.preview) addHandles(graph, paper.querySelector('svg'));
@@ -1111,7 +1114,7 @@ $('#exportJpg').onclick = async () => {
     const canvas = document.createElement('canvas');
     canvas.width = px; canvas.height = py;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = $('#paperColor').value || '#ffffff';
     ctx.fillRect(0, 0, px, py);
     ctx.drawImage(img, 0, 0, px, py);
     const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
@@ -1126,5 +1129,6 @@ $('#exportJpg').onclick = async () => {
 
 restore();
 renderPenUI();
+applyPaperColor();
 const isMobile = () => matchMedia('(max-width: 800px)').matches;
 if (isMobile()) document.querySelectorAll('#panel details').forEach((d) => { d.open = false; });

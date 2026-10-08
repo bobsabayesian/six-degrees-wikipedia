@@ -83,3 +83,7 @@ h1 img { flex: none; }
   #inspector textarea { width: 100%; }
   #inspector .grp button { min-height: 40px; min-width: 40px; }
 }
+.about-link { margin: -6px 0 14px; font-size: 13px; }
+.about-link a { color: var(--accent); }
+input[type=color] { border-radius: 5px; }
+label input[type=color] { width: 64px; height: 30px; }

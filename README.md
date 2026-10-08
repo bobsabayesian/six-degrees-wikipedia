@@ -71,6 +71,10 @@ Maps you make for yourself are yours to plot and share. To help people trace whe
 - Exports include a small **credit line** in the corner of the drawing (“Made with Six Degrees of Wikipedia - github.com/bobsabayesian/six-degrees-wikipedia”) and credit/licence **metadata** inside the SVG. The credit line is on by default and can be turned off in the Title panel for your own personal use. Please leave it on if you share or publish a map.
 - Link data comes from Wikipedia, whose own licence ([CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0/)) applies to its content.
 
+## About / get a print
+
+See [about.html](about.html) (linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
+
 ## Credits
 
 Hershey font data via the MIT-licensed [`hersheytext`](https://github.com/techninja/hersheytext) package (original Hershey data © US NBS, as redistributed by Evil Mad Scientist; these notices must be kept). Inspired by [wikipedia-map](https://github.com/controversial/wikipedia-map).

@@ -10,6 +10,7 @@
 <body>
 <aside id="panel">
   <h1><img src="assets/logo.png" alt="" width="40" height="38"> Six Degrees of Wikipedia</h1>
+  <p class="about-link"><a href="about.html">About this project &amp; get a print →</a></p>
 
   <section>
     <label>From
@@ -76,6 +77,10 @@
       <label>Orientation
         <select id="orient"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
       </label>
+    </div>
+    <div class="row">
+      <label>Paper colour <input type="color" id="paperColor" data-save value="#ffffff"></label>
+      <label class="chk"><input type="checkbox" id="paperInSvg" data-save> Include in SVG</label>
     </div>
     <div class="row">
       <label>W mm <input type="number" id="pw" data-save value="297"></label>
