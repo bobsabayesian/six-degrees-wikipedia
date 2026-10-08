@@ -12,7 +12,7 @@ Everything runs in the browser against the public Wikipedia API. There is no bui
 python3 -m http.server 8000
 ```
 
-Then open <http://localhost:8000>. (Any static file server works; opening `index.html` directly also works.)
+Then open <http://localhost:8000/six/> for the app (the site root, <http://localhost:8000/>, is the About page). Any static file server works.
 
 The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, so you need an internet connection.
 
@@ -56,9 +56,10 @@ The SVG is in millimetres at the chosen paper size, with **one layer per pen**, 
 
 ## Files
 
-- `index.html`, `style.css` – the interface.
-- `app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
-- `fonts.js` – vendored Hershey single-stroke font data.
+- `index.html` – the site's About page (served at the domain root).
+- `six/index.html`, `six/style.css` – the app interface (served at `/six/`).
+- `six/app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
+- `six/fonts.js` – vendored Hershey single-stroke font data.
 - `assets/` – logo and favicon.
 - `LICENSE` – PolyForm Noncommercial 1.0.0.
 
@@ -73,7 +74,7 @@ Maps you make for yourself are yours to plot and share. To help people trace whe
 
 ## About / get a print
 
-See [about.html](about.html) (linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
+See [index.html](index.html) (the site's root page, linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
 
 ## Credits
 
