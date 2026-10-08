@@ -57,6 +57,7 @@ The SVG is in millimetres at the chosen paper size, with **one layer per pen**, 
 ## Files
 
 - `index.html`, `style.css` – the app interface.
+- `six-about.html` – the About page (why this project exists, how to request a print).
 - `app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
 - `fonts.js` – vendored Hershey single-stroke font data.
 - `assets/` – logo and favicon.
@@ -73,7 +74,7 @@ Maps you make for yourself are yours to plot and share. To help people trace whe
 
 ## About / get a print
 
-See <https://bobsabayesian.io> (linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
+See [six-about.html](six-about.html) (linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
 
 ## Credits
 
