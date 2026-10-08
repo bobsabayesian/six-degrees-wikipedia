@@ -314,12 +314,25 @@ function boxFor(b, ax, first, anchor) {
   return { x0, y0: first - b.cap, x1: x0 + b.w, y1: first + (b.lines.length - 1) * b.lh + b.desc };
 }
 
+// ───────────────────────── credit / attribution ─────────────────────────
+const PROJECT_URL = 'https://github.com/bobsabayesian/six-degrees-wikipedia';
+const CREDIT_TEXT = 'Made with Six Degrees of Wikipedia - github.com/bobsabayesian/six-degrees-wikipedia';
+
 // ───────────────────────── title ─────────────────────────
 // Lays out the title/subtitle and returns the zone left over for the map.
 function titleLayout(graph) {
   const W = num('pw'), H = num('ph'), m = num('margin');
   const zone = { x0: m, y0: m, x1: W - m, y1: H - m };
   const out = { zone, items: [], box: null };
+
+  // small credit line in the bottom-right corner (on by default)
+  let bottom = H - m;
+  if (chk('showCredit')) {
+    const cb = makeBlock(CREDIT_TEXT, 2.2, W - 2 * m, fontKey());
+    out.items.push({ role: 'credit', b: cb, ax: W - m, anchor: 'end', first: bottom - cb.desc });
+    bottom -= cb.h + 2.5;
+    zone.y1 = bottom;
+  }
   if (!chk('showTitle')) return out;
 
   const pathNodes = graph.nodes.filter((n) => n.kind === 'path').sort((a, b) => a.i - b.i);
@@ -335,7 +348,7 @@ function titleLayout(graph) {
   const gap = size * 0.35, band = 4;
   const total = items.reduce((t, it) => t + it.b.h, 0) + gap * (items.length - 1);
   const top = $('#titlePos').value === 'top';
-  let y = top ? m : H - m - total;
+  let y = top ? m : bottom - total;
   const align = $('#titleAlign').value;
   const anchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
   const ax = align === 'left' ? m : align === 'right' ? W - m : W / 2;
@@ -347,8 +360,8 @@ function titleLayout(graph) {
     box = box ? { x0: Math.min(box.x0, bx.x0), y0: Math.min(box.y0, bx.y0), x1: Math.max(box.x1, bx.x1), y1: Math.max(box.y1, bx.y1) } : bx;
     y += it.b.h + gap;
   }
-  if (top) zone.y0 = m + total + band; else zone.y1 = H - m - total - band;
-  out.items = items; out.box = box;
+  if (top) zone.y0 = m + total + band; else zone.y1 = bottom - total - band;
+  out.items.push(...items); out.box = box;
   return out;
 }
 
@@ -528,7 +541,7 @@ function finalize(graph) {
 
 // ───────────────────────── pens & roles ─────────────────────────
 const ROLES = [
-  ['title', 'Title'], ['subtitle', 'Subtitle'],
+  ['title', 'Title'], ['subtitle', 'Subtitle'], ['credit', 'Credit line'],
   ['startNode', 'Start node'], ['startLabel', 'Start label'],
   ['endNode', 'End node'], ['endLabel', 'End label'],
   ['viaNode', 'Via nodes'], ['viaLabel', 'Via labels'],
@@ -549,7 +562,7 @@ const DEFAULT_PENS = [
   { id: 'p7', name: 'Orange', color: '#d98a00', width: 0.6 },
 ];
 const DEFAULT_ASSIGN = {
-  title: 'p1', subtitle: 'p1',
+  title: 'p1', subtitle: 'p1', credit: 'p4',
   startNode: 'p5', startLabel: 'p5', endNode: 'p6', endLabel: 'p6', viaNode: 'p7', viaLabel: 'p7',
   pathEdge: 'p2', pathNode: 'p2', pathLabel: 'p2', fillPath: '',
   branchEdge: 'p3', branchNode: 'p3', branchLabel: 'p1', fillBranch: '',
@@ -700,7 +713,17 @@ function renderSVG(graph) {
     return `<g id="layer${i + 1}" inkscape:groupmode="layer" inkscape:label="${esc(label)}" fill="none" stroke="${p.color}" stroke-width="${p.width}" stroke-linecap="round" stroke-linejoin="round">\n${items.join('\n')}\n</g>`;
   }).filter(Boolean).join('\n');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n${layers}\n</svg>`;
+  const meta = `<metadata>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<rdf:Description>
+<dc:creator>Made with Six Degrees of Wikipedia (${PROJECT_URL})</dc:creator>
+<dc:source>${PROJECT_URL}</dc:source>
+<dc:rights>Software: PolyForm Noncommercial License 1.0.0, Copyright 2026 bobsabayesian. Commercial use of the software requires a separate licence: ${PROJECT_URL}</dc:rights>
+<dc:description>Link data from Wikipedia (https://www.wikipedia.org), used under CC BY-SA.</dc:description>
+</rdf:Description>
+</rdf:RDF>
+</metadata>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n${meta}\n${layers}\n</svg>`;
 }
 
 function show(graph) {
@@ -883,7 +906,7 @@ function changed(relayout) {
 
 // ───────────────────────── UI wiring ─────────────────────────
 const LAYOUT_IDS = ['k1', 'k2', 'cross', 'seed', 'pw', 'ph', 'margin', 'fs', 'showBL', 'font', 'wrapSat', 'wrapPath', 'rPath', 'rBranch', 'rEnd', 'endScale', 'k1End',
-  'showTitle', 'titleText', 'showSub', 'subText', 'titlePos', 'titleAlign', 'titleSize', 'titleFont'];
+  'showCredit', 'showTitle', 'titleText', 'showSub', 'subText', 'titlePos', 'titleAlign', 'titleSize', 'titleFont'];
 document.querySelectorAll('[data-save]').forEach((el) => {
   el.addEventListener('input', () => changed(LAYOUT_IDS.includes(el.id)));
 });

@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="Six Degrees of Wikipedia logo" width="140"></p>
+
 # Six Degrees of Wikipedia — plotter map
 
 Name two Wikipedia topics. The app finds a chain of links connecting them, draws it as a map with extra branches hanging off each page, and exports an SVG (one layer per pen) ready for a pen plotter, or a JPG preview.
@@ -29,7 +31,7 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 | **Branches** | Branches per path node, per end node, sub-branches per branch, optional cross-links between known pages. The layout seed (🎲) gives reproducible variations. |
 | **Paper & style** | Paper from postcard to A1 (plus Letter/Tabloid/custom), orientation, margin, node radii (ends vs. path vs. branches), font size, end-label scale, curved edges, node fill style (rings or hatching). |
 | **Stroke font / wrapping** | Labels are drawn with single-stroke Hershey fonts so they plot as real pen lines. Separate wrap widths for satellite labels and path labels (0 = off; long titles are then truncated). |
-| **Title** | Optional title and subtitle (auto: “A to B”, “N degrees of separation”), top or bottom, alignment, size, font. |
+| **Title** | Optional credit line (see [Licence](#licence)), optional title and subtitle (auto: “A to B”, “N degrees of separation”), top or bottom, alignment, size, font. |
 | **Pens** | Define pens (colour + line width in mm), then assign one to every element: title, subtitle, start / end / via / path nodes and labels, branch and sub-branch nodes, edges and labels, cross-links, page border, and node fills (none by default). |
 
 ### Editing the map
@@ -56,7 +58,18 @@ The SVG is in millimetres at the chosen paper size, with **one layer per pen**, 
 - `index.html`, `style.css` – the interface.
 - `app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
 - `fonts.js` – vendored Hershey single-stroke font data.
+- `assets/` – logo and favicon.
+- `LICENSE` – PolyForm Noncommercial 1.0.0.
+
+## Licence
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). In plain terms: you may use, modify and share this software for **noncommercial** purposes (personal projects, hobby plotting, research, education, gifts). **Commercial use, including selling prints, SVGs or products made with it, or offering it as a paid service, needs a separate commercial licence.** To ask for one, open an issue at <https://github.com/bobsabayesian/six-degrees-wikipedia/issues>.
+
+Maps you make for yourself are yours to plot and share. To help people trace where a map came from:
+
+- Exports include a small **credit line** in the corner of the drawing (“Made with Six Degrees of Wikipedia - github.com/bobsabayesian/six-degrees-wikipedia”) and credit/licence **metadata** inside the SVG. The credit line is on by default and can be turned off in the Title panel for your own personal use. Please leave it on if you share or publish a map.
+- Link data comes from Wikipedia, whose own licence ([CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0/)) applies to its content.
 
 ## Credits
 
-Hershey font data via the MIT-licensed [`hersheytext`](https://github.com/techninja/hersheytext) package (original Hershey data © US NBS, as redistributed by Evil Mad Scientist). Inspired by [wikipedia-map](https://github.com/controversial/wikipedia-map).
+Hershey font data via the MIT-licensed [`hersheytext`](https://github.com/techninja/hersheytext) package (original Hershey data © US NBS, as redistributed by Evil Mad Scientist; these notices must be kept). Inspired by [wikipedia-map](https://github.com/controversial/wikipedia-map).

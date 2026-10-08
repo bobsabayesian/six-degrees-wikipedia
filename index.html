@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Six Degrees of Wikipedia – Plotter Map</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <aside id="panel">
-  <h1>Six Degrees of Wikipedia</h1>
+  <h1><img src="assets/logo.png" alt="" width="40" height="38"> Six Degrees of Wikipedia</h1>
 
   <section>
     <label>From
@@ -113,6 +114,7 @@
 
   <details open>
     <summary>Title</summary>
+    <label class="chk"><input type="checkbox" id="showCredit" data-save checked> Credit line (“Made with Six Degrees of Wikipedia…”)</label>
     <label class="chk"><input type="checkbox" id="showTitle" data-save checked> Show title</label>
     <label>Title text <input id="titleText" data-save placeholder="Auto: “A to B”"></label>
     <label class="chk"><input type="checkbox" id="showSub" data-save checked> Show subtitle</label>
