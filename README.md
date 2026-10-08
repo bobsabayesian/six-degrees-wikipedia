@@ -12,7 +12,7 @@ Everything runs in the browser against the public Wikipedia API. There is no bui
 python3 -m http.server 8000
 ```
 
-Then open <http://localhost:8000/six/> for the app (the site root, <http://localhost:8000/>, is the About page). Any static file server works.
+Then open <http://localhost:8000/>. Any static file server works. The live site is at <https://six.bobsabayesian.io>.
 
 The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, so you need an internet connection.
 
@@ -56,10 +56,9 @@ The SVG is in millimetres at the chosen paper size, with **one layer per pen**, 
 
 ## Files
 
-- `index.html` – the site's About page (served at the domain root).
-- `six/index.html`, `six/style.css` – the app interface (served at `/six/`).
-- `six/app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
-- `six/fonts.js` – vendored Hershey single-stroke font data.
+- `index.html`, `style.css` – the app interface.
+- `app.js` – Wikipedia search, graph building, layout (d3-force), label placement, SVG rendering, UI.
+- `fonts.js` – vendored Hershey single-stroke font data.
 - `assets/` – logo and favicon.
 - `LICENSE` – PolyForm Noncommercial 1.0.0.
 
@@ -69,12 +68,12 @@ Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). In plain ter
 
 Maps you make for yourself are yours to plot and share. To help people trace where a map came from:
 
-- Exports include a small **credit line** in the corner of the drawing (“Made with Six Degrees of Wikipedia - github.com/bobsabayesian/six-degrees-wikipedia”) and credit/licence **metadata** inside the SVG. The credit line is on by default and can be turned off in the Title panel for your own personal use. Please leave it on if you share or publish a map.
+- Exports include a small **credit line** in the corner of the drawing (“Made with Six Degrees of Wikipedia - six.bobsabayesian.io”) and credit/licence **metadata** inside the SVG. The credit line is on by default and can be turned off in the Title panel for your own personal use. Please leave it on if you share or publish a map.
 - Link data comes from Wikipedia, whose own licence ([CC BY-SA](https://creativecommons.org/licenses/by-sa/4.0/)) applies to its content.
 
 ## About / get a print
 
-See [index.html](index.html) (the site's root page, linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
+See <https://bobsabayesian.io> (linked from the app) for why this project exists and how to request a print through [Ko-fi](https://ko-fi.com/bobsabayesian).
 
 ## Credits
 

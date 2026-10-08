@@ -316,7 +316,7 @@ function boxFor(b, ax, first, anchor) {
 
 // ───────────────────────── credit / attribution ─────────────────────────
 const PROJECT_URL = 'https://github.com/bobsabayesian/six-degrees-wikipedia';
-const CREDIT_TEXT = 'Made with Six Degrees of Wikipedia - github.com/bobsabayesian/six-degrees-wikipedia';
+const CREDIT_TEXT = 'Made with Six Degrees of Wikipedia - six.bobsabayesian.io';
 
 // ───────────────────────── title ─────────────────────────
 // Lays out the title/subtitle and returns the zone left over for the map.
