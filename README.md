@@ -38,6 +38,7 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 
 - **Drag** any node or label to nudge it. Click one and use the **arrow keys** (Shift = bigger steps). Double-click to reset it. Moving one item doesn't disturb the rest of the layout.
 - **Click** an element to open its edit bar: change the label text (Enter = new line), force 1/2/3 lines, scale text or node size, hide/show the label, or **Ignore page**.
+- **On a phone or tablet** the map stays pinned at the top while you scroll through the settings below it, so changes show live. Drag nodes and labels with your finger; tapping one opens the edit bar as a bottom sheet with on-screen nudge buttons.
 - Labels are automatically placed to avoid each other, node circles, edges, the title and the margins.
 
 Nudges and per-element edits are kept in memory only: they are cleared by a new search (and nudges by 🎲 / changing the seed), and lost on reload. Pen assignments and settings are saved in your browser's localStorage.

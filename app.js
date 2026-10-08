@@ -736,14 +736,18 @@ function show(graph) {
 // Invisible hit areas for dragging (UI only; never part of the exported SVG)
 function addHandles(graph, svg) {
   const sel = state.sel;
+  // on touch screens make hit areas at least ~18 px, whatever the zoom
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  const ppm = svg.getBoundingClientRect().width / num('pw') || 1;
+  const minR = coarse ? 18 / ppm : 2.5, pad = coarse ? 9 / ppm : 0.5;
   const cls = (kind, id) => 'h' + (sel && sel.kind === kind && sel.id === id ? ' sel' : '');
   let out = '';
   for (const n of graph.nodes) {
     const b = n.lbl?.box;
-    if (b) out += `<rect class="${cls('label', n.id)}" data-h="label" data-id="${esc(n.id)}" x="${fmt(b.x0 - 0.5)}" y="${fmt(b.y0 - 0.5)}" width="${fmt(b.x1 - b.x0 + 1)}" height="${fmt(b.y1 - b.y0 + 1)}"/>`;
+    if (b) out += `<rect class="${cls('label', n.id)}" data-h="label" data-id="${esc(n.id)}" x="${fmt(b.x0 - pad)}" y="${fmt(b.y0 - pad)}" width="${fmt(b.x1 - b.x0 + 2 * pad)}" height="${fmt(b.y1 - b.y0 + 2 * pad)}"/>`;
   }
   for (const n of graph.nodes) {
-    out += `<circle class="${cls('node', n.id)}" data-h="node" data-id="${esc(n.id)}" cx="${fmt(n.x)}" cy="${fmt(n.y)}" r="${fmt(Math.max(nodeRadius(n) + 1, 2.5))}"/>`;
+    out += `<circle class="${cls('node', n.id)}" data-h="node" data-id="${esc(n.id)}" cx="${fmt(n.x)}" cy="${fmt(n.y)}" r="${fmt(Math.max(nodeRadius(n) + 1, minR))}"/>`;
   }
   svg.insertAdjacentHTML('beforeend', `<g id="nudge">${out}</g>`);
 }
@@ -794,12 +798,8 @@ paperEl.addEventListener('dblclick', (e) => {
   delete (h.dataset.h === 'node' ? state.nudge.nodes : state.nudge.labels)[h.dataset.id];
   refresh();
 });
-window.addEventListener('keydown', (e) => {
-  if (!state.sel || !state.graph || /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
-  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-  if (!dir) return;
-  e.preventDefault();
-  const step = e.shiftKey ? 2 : 0.5, dx = dir[0] * step, dy = dir[1] * step;
+function nudgeSel(dx, dy) {
+  if (!state.sel || !state.graph) return;
   const { kind, id } = state.sel;
   if (kind === 'node') {
     const n = state.graph.nodes.find((x) => x.id === id);
@@ -809,7 +809,25 @@ window.addEventListener('keydown', (e) => {
     state.nudge.labels[id] = { dx: o.dx + dx, dy: o.dy + dy };
   }
   refresh();
+}
+window.addEventListener('keydown', (e) => {
+  if (!state.sel || !state.graph || /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 2 : 0.5;
+  nudgeSel(dir[0] * step, dir[1] * step);
 });
+// touch: don't let the page scroll while dragging a handle
+paperEl.addEventListener('touchstart', (e) => { if (e.target.closest?.('[data-h]')) e.preventDefault(); }, { passive: false });
+document.querySelectorAll('#inspector [data-nudge]').forEach((btn) => {
+  btn.onclick = () => { const [x, y] = btn.dataset.nudge.split(',').map(Number); nudgeSel(x, y); };
+});
+$('#insResetPos').onclick = () => {
+  if (!state.sel) return;
+  delete state.nudge.nodes[state.sel.id]; delete state.nudge.labels[state.sel.id];
+  refresh();
+};
 // ── inspector: per-article format ──
 const ins = {
   box: $('#inspector'), name: $('#insName'), text: $('#insText'), scale: $('#insScale'), r: $('#insR'), show: $('#insShow'),
@@ -960,7 +978,7 @@ function wireAutocomplete(box) {
       for (const p of pages) {
         const li = document.createElement('li');
         li.innerHTML = `${esc(p.title)}<small>${esc(p.description || '')}</small>`;
-        li.onmousedown = (e) => { e.preventDefault(); input.value = p.title; list.innerHTML = ''; persist(); };
+        li.onpointerdown = (e) => { e.preventDefault(); input.value = p.title; list.innerHTML = ''; persist(); };
         list.appendChild(li);
       }
     } catch { /* ignore */ }
@@ -1001,6 +1019,7 @@ $('#stop').onclick = () => { state.cancel = true; };
 $('#find').onclick = async () => {
   if (state.running) return;
   state.running = true; state.cancel = false;
+  if (isMobile()) window.scrollTo({ top: 0, behavior: 'smooth' });   // show the map while it searches
   $('#find').disabled = true; $('#stop').disabled = false; $('#export').disabled = true; $('#exportJpg').disabled = true;
   $('#log').textContent = '';
   const status = (s) => { $('#status').textContent = s; };
@@ -1107,3 +1126,5 @@ $('#exportJpg').onclick = async () => {
 
 restore();
 renderPenUI();
+const isMobile = () => matchMedia('(max-width: 800px)').matches;
+if (isMobile()) document.querySelectorAll('#panel details').forEach((d) => { d.open = false; });

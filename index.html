@@ -172,7 +172,10 @@
     <label>Text size × <input type="number" id="insScale" value="1" step="0.1" min="0.3" max="4"></label>
     <label>Node size × <input type="number" id="insR" value="1" step="0.1" min="0.3" max="4"></label>
     <label class="chk"><input type="checkbox" id="insShow"> Show label</label>
-    <button id="insIgnore" title="Add this page to the ignore list">Ignore page</button><button id="insReset">Reset</button><button id="insClose" title="Deselect">✕</button>
+    <button id="insIgnore" title="Add this page to the ignore list">Ignore page</button><span class="grp">Nudge
+      <button data-nudge="-1,0" aria-label="Left">◀</button><button data-nudge="0,-1" aria-label="Up">▲</button><button data-nudge="0,1" aria-label="Down">▼</button><button data-nudge="1,0" aria-label="Right">▶</button>
+    </span>
+    <button id="insResetPos" title="Undo dragging/nudging for this item">Reset position</button><button id="insReset" title="Undo text, size and label edits">Reset format</button><button id="insClose" title="Deselect">✕</button>
   </div>
   <div id="status"></div>
   <pre id="log"></pre>
