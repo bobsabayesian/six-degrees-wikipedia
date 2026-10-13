@@ -40,7 +40,7 @@ const API = 'https://en.wikipedia.org/w/api.php';
 const BATCH = 20;      // titles per request
 const MAX_CONT = 3;    // continuation requests per batch (caps hub pages)
 const state = { ignore: new Set(), fmt: {}, nudge: { nodes: {}, labels: {} }, sel: null, vias: new Set(), path: null, graph: null, cancel: false, running: false, token: 0 };
-const cache = { f: new Map(), b: new Map() }; // title -> neighbour titles (f = outgoing links, b = incoming)
+const cache = { f: new Map(), b: new Map(), h: new Map() }; // title -> neighbour titles (f = outgoing links, b = incoming)
 
 async function api(params) {
   const url = API + '?' + new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params });
@@ -153,6 +153,138 @@ async function findPath(a, b, { maxExp, cap }, onProgress) {
   return null;
 }
 
+// ───────────────────────── strict search ─────────────────────────
+// Strict mode only follows links a page "offers" under the branch-link setting (e.g. the first 50 links of the
+// infobox and of the main text). That needs each page's HTML, and the backward direction has no article order to
+// use, so this is a forward-only, best-effort search: it can fail on distant topics.
+async function strictSearch(a, b, { cap, maxJumps }, onProgress) {
+  if (maxJumps < 1) return null;
+  const goal = new Set([b]);   // b and the redirects that point at it
+  try {
+    const j = await api({ action: 'query', list: 'backlinks', bltitle: b, blfilterredir: 'redirects', bllimit: 'max', blnamespace: '0' });
+    for (const x of j.query?.backlinks ?? []) goal.add(x.title);
+  } catch (e) { if (e.message === 'cancelled') throw e; }
+  let near = new Set();   // pages that link to b: tried first (they're one hop from the goal if b is among their top links)
+  try { near = new Set((await fetchNeighbors([b], 'b'))[0]); } catch (e) { if (e.message === 'cancelled') throw e; }
+
+  const parent = new Map([[a, null]]);
+  const rng = mulberry32(4242);
+  let frontier = [a];
+  for (let depth = 1; depth <= maxJumps; depth++) {
+    if (!frontier.length) return null;
+    const hot = frontier.filter((t) => near.has(t)), cold = frontier.filter((t) => !near.has(t));
+    const cur = [...shuffle(hot, rng), ...shuffle(cold, rng)].slice(0, cap);
+    await onProgress({ step: depth - 1, depth, maxJumps, side: 'f', count: cur.length, par: { f: parent, b: new Map([[b, null]]) } });
+    let done = 0;
+    await mapPool(cur, 2, async (t) => {
+      await fetchOrderedLinks(t);
+      done++;
+      if (done % 5 === 0 || done === cur.length) $('#status').textContent = `Level ${depth}/${maxJumps}: read ${done}/${cur.length} articles…`;
+    });
+    const next = [];
+    for (const t of cur) {
+      const entry = cache.h.get(t);
+      if (!entry) continue;   // unreadable page offers nothing
+      for (const n of selectLinks(entry)) {
+        if (state.ignore.has(n)) continue;
+        if (goal.has(n)) {
+          const names = [];
+          for (let x = t; x !== null; x = parent.get(x)) names.unshift(cache.h.get(x)?.title || x);
+          return [...names, b];
+        }
+        if (parent.has(n)) continue;
+        parent.set(n, t);
+        next.push(n);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+// ───────────────────────── article-order links (for branches) ─────────────────────────
+// The links API returns links alphabetically. To pick the links an article cites first, read the
+// article's own HTML and take its links in document order.
+const NS_RE = /^(?:file|image|category|help|special|wikipedia|wp|template|portal|talk|draft|user|module|mediawiki|book|timedtext)(?:[ _]talk)?:/i;
+const resolveCache = new Map();   // title -> canonical article title, or null if it doesn't exist
+
+async function fetchOrderedLinks(title) {
+  if (cache.h.has(title)) return cache.h.get(title);
+  let list = null;   // {info, body} in article order; null = couldn't read the HTML (caller falls back to the alphabetical list)
+  try {
+    const j = await api({ action: 'parse', page: title, prop: 'text', redirects: '1', disableeditsection: '1', disablelimitreport: '1', disabletoc: '1' });
+    const doc = new DOMParser().parseFromString(j.parse?.text ?? '', 'text/html');
+    doc.querySelectorAll('.hatnote, .mw-editsection, .ambox, .navbar, .sistersitebox, .metadata, style, script').forEach((e) => e.remove());
+    // the infobox (and side-bar boxes) are kept apart from the main text
+    const lists = { info: [], body: [] };
+    const seen = { info: new Set([title, j.parse?.title]), body: new Set([title, j.parse?.title]) };
+    for (const a of doc.querySelectorAll('a[href^="/wiki/"]')) {
+      if (a.classList.contains('new')) continue;
+      let t;
+      try { t = decodeURIComponent(a.getAttribute('href').slice(6)); } catch { continue; }
+      t = t.split('#')[0].replace(/_/g, ' ').trim();
+      if (!t || NS_RE.test(t)) continue;
+      const part = a.closest('.infobox, .infobox_v2, .infobox_v3, .sidebar') ? 'info' : 'body';
+      if (seen[part].has(t)) continue;
+      seen[part].add(t);
+      lists[part].push(t);
+    }
+    lists.title = j.parse?.title || title;
+    list = lists;
+  } catch (e) {
+    if (e.message === 'cancelled') throw e;
+  }
+  cache.h.set(title, list);
+  return list;
+}
+
+// Resolve redirects and drop pages that don't exist; returns canonical titles (or null) in input order
+async function resolveTitles(titles) {
+  const todo = [...new Set(titles)].filter((t) => !resolveCache.has(t));
+  for (let i = 0; i < todo.length; i += 50) {
+    const batch = todo.slice(i, i + 50);
+    try {
+      const j = await api({ action: 'query', titles: batch.join('|'), redirects: '1' });
+      const hop = new Map();
+      for (const x of [...(j.query?.normalized ?? []), ...(j.query?.redirects ?? [])]) hop.set(x.from, x.to);
+      const byTitle = new Map((j.query?.pages ?? []).map((p) => [p.title, p]));
+      for (const t of batch) {
+        let c = t;
+        for (let k = 0; k < 5 && hop.has(c); k++) c = hop.get(c);
+        const p = byTitle.get(c);
+        resolveCache.set(t, p && !p.missing && !p.invalid && p.ns === 0 ? c : null);
+      }
+    } catch (e) {
+      if (e.message === 'cancelled') throw e;
+      for (const t of batch) resolveCache.set(t, t);   // can't verify; trust the title
+    }
+  }
+  return titles.map((t) => resolveCache.get(t) ?? null);
+}
+
+async function mapPool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) await fn(items[i++]);
+  }));
+}
+
+// Apply the "first N / first N % / all" setting to one ordered list
+function cutLinks(list) {
+  const mode = $('#linkMode').value, v = Math.max(1, num('linkCut'));
+  if (mode === 'all') return list;
+  const n = mode === 'topPct' ? Math.max(1, Math.ceil((list.length * Math.min(100, v)) / 100)) : v;
+  return list.slice(0, n);
+}
+// The links a page offers for branches: the cut applied to the infobox and/or the main text separately
+function selectLinks(entry) {
+  const src = $('#linkSource').value;   // 'any' (fast mode) never reaches here except via strict search: treat as both
+  const parts = [];
+  if (src !== 'body') parts.push(cutLinks(entry.info));
+  if (src !== 'info') parts.push(cutLinks(entry.body));
+  return [...new Set(parts.flat())];
+}
+
 // ───────────────────────── graph building ─────────────────────────
 function pairKey(a, b) { return a < b ? a + '\u0000' + b : b + '\u0000' + a; }
 
@@ -172,19 +304,41 @@ async function buildGraph(path, seed) {
 
   const rng = mulberry32(seed * 101 + 7);
   const grow = async (parents, count, kind) => {
-    if (!parents.length) return [];
-    await fetchNeighbors(parents, 'f');
-    const added = [];
-    for (const p of parents) {
+    if (!parents.length || (typeof count === 'number' && count <= 0)) return [];
+    await fetchNeighbors(parents, 'f');   // alphabetical API lists: the fast source, and the fallback if an article can't be read
+    const useHtml = $('#linkSource').value !== 'any';
+    if (useHtml) {
+      const unread = parents.filter((p) => !cache.h.has(p)).length;
+      if (unread) $('#status').textContent = `Reading ${unread} article${unread === 1 ? '' : 's'} for branches…`;
+      await mapPool(parents, 2, fetchOrderedLinks);
+    }
+
+    // 1) per parent: pick the candidate links, shuffle, drop ignored pages, keep a few spares
+    const plan = parents.map((p) => {
       const take = typeof count === 'function' ? count(p) : count;
-      if (take <= 0) continue;
-      const pool = (cache.f.get(p) || []).filter((n) => !nodes.has(n));
+      if (take <= 0) return null;
+      const entry = useHtml ? cache.h.get(p) : null;
+      const chosen = entry ? selectLinks(entry) : useHtml ? cutLinks(cache.f.get(p) ?? []) : cache.f.get(p) ?? [];
+      const pool = chosen.filter((n) => !nodes.has(n));
       // shuffle first, then drop ignored pages, so ignoring one page only swaps in the next candidate
-      for (const c of shuffle(pool, rng).filter((n) => !state.ignore.has(n)).slice(0, take)) {
-        if (nodes.has(c)) continue;
-        nodes.set(c, { id: c, kind, parent: p });
-        addEdge(p, c, kind);
+      const cands = shuffle(pool, rng).filter((n) => !state.ignore.has(n)).slice(0, take * 2 + 4);
+      return { p, take, cands };
+    });
+    // 2) article HTML titles can be redirects or missing pages; API titles are already canonical
+    if (useHtml) await resolveTitles(plan.flatMap((x) => x?.cands ?? []));
+    // 3) accept
+    const added = [];
+    for (const x of plan) {
+      if (!x) continue;
+      let got = 0;
+      for (const cand of x.cands) {
+        if (got >= x.take) break;
+        const c = useHtml ? resolveCache.get(cand) : cand;
+        if (!c || nodes.has(c) || state.ignore.has(c)) continue;
+        nodes.set(c, { id: c, kind, parent: x.p });
+        addEdge(x.p, c, kind);
         added.push(c);
+        got++;
       }
     }
     return added;
@@ -193,8 +347,16 @@ async function buildGraph(path, seed) {
   await grow(level1, k2, 'b2');
 
   if (chk('cross')) {
+    const everything = $('#linkSource').value === 'any' || $('#linkMode').value === 'all';
     for (const [id] of nodes) {
-      for (const n of cache.f.get(id) || []) if (nodes.has(n) && n !== id) addEdge(id, n, 'cross');
+      let targets;
+      if (everything) targets = cache.f.get(id) || [];
+      else {
+        const entry = cache.h.get(id);
+        // only links the page itself offers under the current setting (redirect names mapped where already known)
+        targets = entry ? selectLinks(entry).map((t) => resolveCache.get(t) || t) : [];
+      }
+      for (const n of targets) if (nodes.has(n) && n !== id) addEdge(id, n, 'cross');
     }
   }
   return { nodes: [...nodes.values()], edges };
@@ -926,7 +1088,7 @@ function changed(relayout) {
 }
 
 // ───────────────────────── UI wiring ─────────────────────────
-const LAYOUT_IDS = ['k1', 'k2', 'cross', 'seed', 'pw', 'ph', 'margin', 'fs', 'showBL', 'font', 'wrapSat', 'wrapPath', 'rPath', 'rBranch', 'rEnd', 'endScale', 'k1End',
+const LAYOUT_IDS = ['k1', 'k2', 'cross', 'seed', 'pw', 'ph', 'margin', 'fs', 'showBL', 'font', 'wrapSat', 'wrapPath', 'rPath', 'rBranch', 'rEnd', 'endScale', 'k1End', 'linkMode', 'linkCut', 'linkSource',
   'showCredit', 'showTitle', 'titleText', 'showSub', 'subText', 'titlePos', 'titleAlign', 'titleSize', 'titleFont'];
 document.querySelectorAll('[data-save]').forEach((el) => {
   el.addEventListener('input', () => changed(LAYOUT_IDS.includes(el.id)));
@@ -1046,17 +1208,37 @@ $('#find').onclick = async () => {
       const a = stops[leg], b = stops[leg + 1];
       const tag = stops.length > 2 ? `[leg ${leg + 1}/${stops.length - 1}] ` : '';
       const prefix = path;
-      const part = await findPath(a, b, { maxExp: num('maxExp'), cap: num('cap') }, async ({ step, side, count, par }) => {
+      const maxJ = num('strictJumps') || 13;
+      const onProgress = async ({ step, side, count, par, depth }) => {
+        if (depth) {
+          log(`${tag}Level ${depth}/${maxJ - (prefix.length - 1)}: reading ${count} articles (seen ${par.f.size})`);
+          const g = previewGraph(par, a, b, prefix);
+          layout(g, 1);
+          show(g);
+          await sleep(0);
+          return;
+        }
         log(`${tag}#${step + 1} expanding ${count} pages ${side === 'f' ? `forward from “${a}”` : `backward from “${b}”`}  (seen ${par.f.size} / ${par.b.size})`);
         status(`${tag}Searching… step ${step + 1}, ${par.f.size + par.b.size} pages seen`);
         const g = previewGraph(par, a, b, prefix);
         layout(g, 1);
         show(g);
         await sleep(0);
-      });
+      };
+      const part = chk('strict')
+        ? await strictSearch(a, b, { cap: num('strictCap') || 60, maxJumps: maxJ - (prefix.length - 1) }, onProgress)
+        : await findPath(a, b, { maxExp: num('maxExp'), cap: num('cap') }, onProgress);
       if (!part) {
-        status(`No connection found from “${a}” to “${b}” within the search limits. Try a larger frontier cap or more expansions.`);
-        log(`No path found for ${a} → ${b}.`);
+        const msg = chk('strict')
+          ? `Strict mode: no route from “${a}” to “${b}” within ${maxJ} jumps using only the selected top links. Try a larger N, more pages per level, or switch strict mode off.`
+          : `No connection found from “${a}” to “${b}” within the search limits. Try a larger frontier cap or more expansions.`;
+        status(msg);
+        log(msg);
+        return;
+      }
+      if (chk('strict') && prefix.length - 1 + part.length - 1 > maxJ) {
+        const msg = `Strict mode: the route needs more than ${maxJ} jumps.`;
+        status(msg); log(msg);
         return;
       }
       if (stops.length > 2) log(`${tag}Found: ${part.join(' → ')}`);
@@ -1129,6 +1311,30 @@ $('#exportJpg').onclick = async () => {
 
 restore();
 renderPenUI();
+let preStrict = null;
+$('#strict').addEventListener('change', () => {
+  const ids = ['linkMode', 'linkCut', 'linkSource'];
+  if (chk('strict')) {
+    preStrict = Object.fromEntries(ids.map((id) => [id, $('#' + id).value]));
+    $('#linkMode').value = 'topN'; $('#linkCut').value = 50; $('#linkSource').value = 'both';
+  } else if (preStrict) {
+    ids.forEach((id) => { $('#' + id).value = preStrict[id]; });
+    preStrict = null;
+  }
+  syncLinkUI();
+  persist();
+  changed(true);
+});
+function syncLinkUI() {
+  const m = $('#linkMode').value;
+  const fast = $('#linkSource').value === 'any';
+  $('#linkMode').closest('label').hidden = fast;
+  $('#linkCutWrap').hidden = fast || m === 'all';
+  $('#linkCutLabel').textContent = m === 'topPct' ? 'Percent of links' : 'Number of links';
+}
+$('#linkMode').addEventListener('input', syncLinkUI);
+$('#linkSource').addEventListener('input', syncLinkUI);
+syncLinkUI();
 applyPaperColor();
 const isMobile = () => matchMedia('(max-width: 800px)').matches;
 if (isMobile()) document.querySelectorAll('#panel details').forEach((d) => { d.open = false; });

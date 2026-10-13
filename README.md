@@ -27,8 +27,9 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 | Panel | What it does |
 |---|---|
 | **Search** | Max expansions and frontier cap. Higher values find shorter paths but make more API requests. |
+| **Strict mode** | Off by default. When on, every step of the path (not just the branches) may only use links a page offers under the Branches setting (turning it on sets that to the first 50 links of the infobox and main text). It reads each page's HTML, searches forward only, is slow, and gives up if there's no route within **Max jumps** (default 13; ~8 is a more realistic ceiling). |
 | **Ignore list** | Pages to leave out (one per line, redirects like “NYT” resolved). Ignored pages never appear as branches and the search won't route through them. |
-| **Branches** | Branches per path node, per end node, sub-branches per branch, optional cross-links between known pages. The layout seed (🎲) gives reproducible variations. |
+| **Branches** | Where branch links come from. The default, **Any link (fastest)**, samples at random from each page's links using Wikipedia's API. Or read each article's HTML for **infobox and main text** (N from each, so up to 2N), **main text only**, or **infobox only**, where “how many” is the first N, the first N %, or all, always in article order. The infobox (and side-bar boxes) count separately from the main text, so “first 3” of the main text starts at the lead's prose. Cross-links follow the same selection. Reading HTML is slower. Then branches per path node, per end node, sub-branches per branch, optional cross-links, and the layout seed (🎲). |
 | **Paper & style** | Paper from postcard to A1 (plus Letter/Tabloid/custom), orientation, margin, node radii (ends vs. path vs. branches), font size, end-label scale, curved edges, node fill style (rings or hatching). |
 | **Stroke font / wrapping** | Labels are drawn with single-stroke Hershey fonts so they plot as real pen lines. Separate wrap widths for satellite labels and path labels (0 = off; long titles are then truncated). |
 | **Title** | Optional credit line (see [Licence](#licence)), optional title and subtitle (auto: “A to B”, “N degrees of separation”), top or bottom, alignment, size, font. |
@@ -50,6 +51,8 @@ The SVG is in millimetres at the chosen paper size, with **one layer per pen**, 
 ## Notes and limits
 
 - The path is close to shortest but not guaranteed to be: the search caps how many pages it expands per step and how much of a heavily linked page it reads. Raise **Frontier cap** / **Max expansions** to search harder.
+- The path search itself still considers every link on every page (see below), so a path step can use a link outside your top N. Branches and cross-links use only the links you select.
+- Branches are drawn from the articles' own link order, not from the alphabetical API list, so a heavily linked page isn't cut off at the end of the alphabet. The search itself still uses the API's link lists, which are capped (about 500 links per request, up to three requests shared across 20 pages), so hub pages can be partly truncated there.
 - With via topics each leg is searched separately, so the total isn't guaranteed shortest through those stops.
 - Wikipedia may rate-limit heavy use (HTTP 429). The app waits and retries; the log shows when it does.
 - Label text is limited to basic ASCII for the stroke fonts. Accents are stripped (é → e) and a few characters are mapped (ø → o, – → -); other characters are dropped.

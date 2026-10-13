@@ -32,6 +32,12 @@
     <label>Max expansions <input type="number" id="maxExp" data-save value="10" min="2" max="20"></label>
     <label>Frontier cap <input type="number" id="cap" data-save value="120" min="10" max="1000"></label>
     <p class="hint">Bidirectional search: outgoing links from the first topic, incoming links to the second. A higher cap finds shorter paths but makes more API requests.</p>
+    <label class="chk"><input type="checkbox" id="strict" data-save> Strict mode: only follow each page's top links</label>
+    <div class="row">
+      <label>Max jumps <input type="number" id="strictJumps" data-save value="13" min="2" max="20"></label>
+      <label>Pages read per level <input type="number" id="strictCap" data-save value="60" min="10" max="500"></label>
+    </div>
+    <p class="hint">Strict mode makes every step of the path use only the links chosen under Branches (turning it on sets them to the first 50 from the infobox and main text). It reads each page's HTML, so it's slow, searches forward only, and gives up if no route exists within the max jumps.</p>
   </details>
 
   <details open>
@@ -44,6 +50,22 @@
 
   <details open>
     <summary>Branches</summary>
+    <label>Take links from
+      <select id="linkSource" data-save>
+        <option value="any" selected>Any link (fastest)</option>
+        <option value="both">Infobox and main text (N from each)</option>
+        <option value="body">Main text only</option>
+        <option value="info">Infobox only</option>
+      </select>
+    </label>
+    <label>How many
+      <select id="linkMode" data-save>
+        <option value="topN" selected>The first N links</option>
+        <option value="topPct">The first N % of links</option>
+        <option value="all">All links</option>
+      </select>
+    </label>
+    <label id="linkCutWrap"><span id="linkCutLabel">Number of links</span> <input type="number" id="linkCut" data-save value="30" min="1" max="1000"></label>
     <div class="row">
       <label>Branches per path node <input type="number" id="k1" data-save value="5" min="0" max="30"></label>
       <label>Per end node <input type="number" id="k1End" data-save value="8" min="0" max="40"></label>
