@@ -87,3 +87,9 @@ h1 img { flex: none; }
 .about-link a { color: var(--accent); }
 input[type=color] { border-radius: 5px; }
 label input[type=color] { width: 64px; height: 30px; }
+
+.starters { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.starters button { margin-top: 2px; }
+#undoBar { display: flex; gap: 8px; }
+body.dropping::after { content: "Drop a saved map to open it"; position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: #000a; color: #fff; font-size: 24px; pointer-events: none; }
+@media (max-width: 800px) { #undoBar { order: 2; padding: 6px 16px 0; } }

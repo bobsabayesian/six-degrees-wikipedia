@@ -35,6 +35,13 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 | **Title** | Optional credit line (see [Licence](#licence)), optional title and subtitle (auto: “A to B”, “N degrees of separation”), top or bottom, alignment, size, font. |
 | **Pens** | Define pens (colour + line width in mm), then assign one to every element: title, subtitle, start / end / via / path nodes and labels, branch and sub-branch nodes, edges and labels, cross-links, page border, and node fills (none by default). |
 
+### Saving, examples and looks
+
+- **Saved maps:** *Save map (.json)* stores everything: the settings, the path, the exact pages and their positions, your nudges and edits. SVGs exported here carry the same data inside their `<metadata>`, so an exported SVG doubles as a save file. Open either with *Open saved map…* or by dropping it anywhere on the page. Opening a saved map needs no Wikipedia lookups, and changing the paper, fonts, sizes or pens afterwards keeps the same pages (only the branch settings choose new ones).
+- **Examples:** *Start from an example* loads ready-made maps (`starters/*.json`, made with this app) so you can try everything before searching.
+- **Looks:** the *Look* menu in Pens replaces the pens and the map style in one step (Classic, Minimal outline, Single pen with labels, Dense web, Bold and filled). It leaves the paper, title and topics alone.
+- **Undo / Redo** (buttons, or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z): covers looks, pen changes, dragging and nudging, label edits, ignoring a page and loading a map's edits. It doesn't cover running a new search.
+
 ### Editing the map
 
 - **Drag** any node or label to nudge it. Click one and use the **arrow keys** (Shift = bigger steps). Double-click to reset it. Moving one item doesn't disturb the rest of the layout.
@@ -42,7 +49,7 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 - **On a phone or tablet** the map stays pinned at the top while you scroll through the settings below it, so changes show live. Drag nodes and labels with your finger; tapping one opens the edit bar as a bottom sheet with on-screen nudge buttons.
 - Labels are automatically placed to avoid each other, node circles, edges, the title and the margins.
 
-Nudges and per-element edits are kept in memory only: they are cleared by a new search (and nudges by 🎲 / changing the seed), and lost on reload. Pen assignments and settings are saved in your browser's localStorage.
+Nudges and per-element edits are cleared by a new search (and nudges by 🎲 / changing the seed), and are lost on reload unless you save the map first. Pen assignments and settings are saved in your browser's localStorage.
 
 ## Plotting
 

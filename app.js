@@ -752,10 +752,11 @@ function renderPenUI() {
       <input class="w" type="number" step="0.05" min="0.05" value="${p.width}" title="Line width (mm)">
       <button title="Remove pen">✕</button>`;
     const [, color, name, w, del] = row.children;
-    color.oninput = () => { p.color = color.value; changed(false); };
-    name.oninput = () => { p.name = name.value; renderRoles(); changed(false); };
-    w.oninput = () => { p.width = parseFloat(w.value) || 0.3; changed(false); };
+    color.oninput = () => { pushUndo('pen'); p.color = color.value; changed(false); };
+    name.oninput = () => { pushUndo('pen'); p.name = name.value; renderRoles(); changed(false); };
+    w.oninput = () => { pushUndo('pen'); p.width = parseFloat(w.value) || 0.3; changed(false); };
     del.onclick = () => {
+      pushUndo();
       pens.splice(i, 1);
       for (const r in assign) if (assign[r] === p.id) assign[r] = '';
       renderPenUI(); changed(false);
@@ -775,11 +776,12 @@ function renderRoles() {
     row.innerHTML = `<span>${label}</span><select>${opts}</select>`;
     const sel = row.querySelector('select');
     sel.value = assign[key] || '';
-    sel.onchange = () => { assign[key] = sel.value; changed(false); };
+    sel.onchange = () => { pushUndo(); assign[key] = sel.value; changed(false); };
     roles.appendChild(row);
   }
 }
 $('#addPen').onclick = () => {
+  pushUndo();
   pens.push({ id: 'p' + Date.now().toString(36), name: 'Pen ' + (pens.length + 1), color: '#000000', width: 0.4 });
   renderPenUI(); changed(false);
 };
@@ -804,7 +806,7 @@ function fillDisc(cx, cy, r, step, style) {
   return out;
 }
 
-function renderSVG(graph) {
+function renderSVG(graph, opts = {}) {
   const W = num('pw'), H = num('ph'), m = num('margin');
   const curved = chk('curved'), fillStyle = $('#fillStyle').value;
   const buckets = new Map(pens.map((p) => [p.id, []]));
@@ -884,7 +886,7 @@ function renderSVG(graph) {
 <dc:rights>Software: PolyForm Noncommercial License 1.0.0, Copyright 2026 bobsabayesian. Commercial use of the software requires a separate licence: ${PROJECT_URL}</dc:rights>
 <dc:description>Link data from Wikipedia (https://www.wikipedia.org), used under CC BY-SA.</dc:description>
 </rdf:Description>
-</rdf:RDF>
+</rdf:RDF>${opts.embed ? embeddedState(graph) : ''}
 </metadata>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}">\n${meta}\n${paperRect}${layers}\n</svg>`;
 }
@@ -952,6 +954,11 @@ paperEl.addEventListener('pointerdown', (e) => {
 paperEl.addEventListener('pointermove', (e) => {
   if (!drag) return;
   const p = toMM(e), dx = p.x - drag.sx, dy = p.y - drag.sy;
+  if (!drag.pushed) {
+    if (Math.hypot(dx, dy) < 0.3) return;   // a click, not a drag
+    pushUndo();
+    drag.pushed = true;
+  }
   if (drag.kind === 'node') setNode(drag.id, drag.orig[0] + dx, drag.orig[1] + dy);
   else state.nudge.labels[drag.id] = { dx: drag.orig.dx + dx, dy: drag.orig.dy + dy };
   refresh();
@@ -960,11 +967,13 @@ paperEl.addEventListener('pointerup', () => { drag = null; });
 paperEl.addEventListener('dblclick', (e) => {
   const h = e.target.closest?.('[data-h]');
   if (!h) return;
+  pushUndo();
   delete (h.dataset.h === 'node' ? state.nudge.nodes : state.nudge.labels)[h.dataset.id];
   refresh();
 });
 function nudgeSel(dx, dy) {
   if (!state.sel || !state.graph) return;
+  pushUndo('nudge:' + state.sel.id);
   const { kind, id } = state.sel;
   if (kind === 'node') {
     const n = state.graph.nodes.find((x) => x.id === id);
@@ -990,6 +999,7 @@ document.querySelectorAll('#inspector [data-nudge]').forEach((btn) => {
 });
 $('#insResetPos').onclick = () => {
   if (!state.sel) return;
+  pushUndo();
   delete state.nudge.nodes[state.sel.id]; delete state.nudge.labels[state.sel.id];
   refresh();
 };
@@ -1012,6 +1022,7 @@ function renderInspector() {
 function setFmt(patch) {
   const n = selNode();
   if (!n) return;
+  pushUndo('fmt:' + n.id + ':' + Object.keys(patch).join());
   const f = { ...(state.fmt[n.id] || {}) };
   for (const [k, v] of Object.entries(patch)) { if (v === undefined || v === null) delete f[k]; else f[k] = v; }
   if (Object.keys(f).length) state.fmt[n.id] = f; else delete state.fmt[n.id];
@@ -1041,6 +1052,7 @@ ins.show.addEventListener('change', () => {
 $('#insIgnore').onclick = async () => {
   const n = selNode();
   if (!n) return;
+  pushUndo();
   if (n.end || n.via) { $('#status').textContent = 'The start, end and via pages can’t be ignored.'; return; }
   const box = $('#ignoreList');
   box.value = (box.value.trim() ? box.value.trim() + '\n' : '') + n.id;
@@ -1050,48 +1062,76 @@ $('#insIgnore').onclick = async () => {
   if (n.kind === 'path') $('#find').click();   // the route itself changes, so search again
   else await rebuild();
 };
-$('#insReset').onclick = () => { const n = selNode(); if (n) { delete state.fmt[n.id]; renderInspector(); refresh(); } };
+$('#insReset').onclick = () => { const n = selNode(); if (n) { pushUndo(); delete state.fmt[n.id]; renderInspector(); refresh(); } };
 $('#insClose').onclick = () => { state.sel = null; renderInspector(); refresh(); };
 
-$('#resetNudges').onclick = () => { resetNudges(); refresh(); };
+$('#resetNudges').onclick = () => { pushUndo(); resetNudges(); refresh(); };
 
 // ───────────────────────── pipeline ─────────────────────────
-async function rebuild() {
+const specNode = ({ id, kind, i, end, via, parent }) => ({ id, kind, i, end, via, parent });
+// structure=true: choose the branches again (may fetch); false: keep the same pages and only redo the layout
+async function rebuild({ structure = true } = {}) {
   if (!state.path || state.running) return;
   const token = ++state.token;
   try {
-    const graph = await buildGraph(state.path, num('seed'));
-    if (token !== state.token) return;
+    if (structure || !state.spec) {
+      const g = await buildGraph(state.path, num('seed'));
+      if (token !== state.token) return;
+      state.spec = { nodes: g.nodes.map(specNode), edges: g.edges };
+    }
+    const graph = { nodes: state.spec.nodes.map((n) => ({ ...n })), edges: state.spec.edges.map((e) => ({ ...e })) };
     layout(graph, num('seed'));
     state.graph = graph;
     show(graph);
-    $('#export').disabled = false; $('#exportJpg').disabled = false;
+    $('#export').disabled = false; $('#exportJpg').disabled = false; $('#saveMap').disabled = false;
     $('#status').textContent = `${state.path.length - 1} links: ${state.path.join(' → ')}  ·  ${graph.nodes.length} pages, ${graph.edges.length} edges`;
   } catch (e) {
     if (e.message !== 'cancelled') { $('#status').textContent = 'Error: ' + e.message; log('Error: ' + e.message); }
   }
 }
-const rebuildSoon = debounce(rebuild, 300);
+let pendingStructure = false;
+const rebuildDebounced = debounce(() => { const structure = pendingStructure; pendingStructure = false; rebuild({ structure }); }, 300);
+const rebuildSoon = (structure = true) => { pendingStructure ||= structure; rebuildDebounced(); };
 
+// Everything in the sidebar that should be remembered: saved in localStorage, in map files, and in undo steps
+function settingsBlob() {
+  const vals = {};
+  document.querySelectorAll('[data-save]').forEach((el) => { vals[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
+  return { vals, pens: structuredClone(pens), assign: { ...assign }, preset: $('#preset').value, vias: viaValues() };
+}
+function applySettings(s) {
+  for (const [id, v] of Object.entries(s.vals || {})) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+  }
+  if (Array.isArray(s.pens) && s.pens.length) pens = structuredClone(s.pens);
+  if (s.assign) {
+    assign = { ...DEFAULT_ASSIGN, ...s.assign };
+    for (const [role, from] of Object.entries(ROLE_FALLBACK)) if (!(role in s.assign)) assign[role] = s.assign[from] ?? '';
+  }
+  if (s.preset !== undefined) $('#preset').value = s.preset;
+  $('#vias').innerHTML = '';
+  (s.vias || []).forEach((v) => addVia(v));
+  renderPenUI(); syncLinkUI(); applyPaperColor();
+}
 function persist() {
-  try {
-    const vals = {};
-    document.querySelectorAll('[data-save]').forEach((el) => { vals[el.id] = el.type === 'checkbox' ? el.checked : el.value; });
-    localStorage.setItem('sdw', JSON.stringify({ vals, pens, assign, preset: $('#preset').value, vias: viaValues() }));
-  } catch { /* storage unavailable */ }
+  try { localStorage.setItem('sdw', JSON.stringify(settingsBlob())); } catch { /* storage unavailable */ }
 }
 // relayout=true → recompute graph/layout; false → restyle only
-function changed(relayout) {
+function changed(relayout, structure = true) {
   persist();
-  if (relayout) rebuildSoon();
+  if (relayout) rebuildSoon(structure);
   else if (state.graph) show(state.graph);
 }
 
 // ───────────────────────── UI wiring ─────────────────────────
+// settings that change which pages are on the map (the rest only change drawing and layout)
+const STRUCTURE_IDS = ['k1', 'k1End', 'k2', 'cross', 'seed', 'linkMode', 'linkCut', 'linkSource'];
 const LAYOUT_IDS = ['k1', 'k2', 'cross', 'seed', 'pw', 'ph', 'margin', 'fs', 'showBL', 'font', 'wrapSat', 'wrapPath', 'rPath', 'rBranch', 'rEnd', 'endScale', 'k1End', 'linkMode', 'linkCut', 'linkSource',
   'showCredit', 'showTitle', 'titleText', 'showSub', 'subText', 'titlePos', 'titleAlign', 'titleSize', 'titleFont'];
 document.querySelectorAll('[data-save]').forEach((el) => {
-  el.addEventListener('input', () => changed(LAYOUT_IDS.includes(el.id)));
+  el.addEventListener('input', () => changed(LAYOUT_IDS.includes(el.id), STRUCTURE_IDS.includes(el.id)));
 });
 function applyPaper() {
   const v = $('#preset').value;
@@ -1100,30 +1140,18 @@ function applyPaper() {
   const land = $('#orient').value === 'landscape';
   $('#pw').value = land ? long : short;
   $('#ph').value = land ? short : long;
-  changed(true);
+  changed(true, false);
 }
 $('#preset').onchange = applyPaper;
 $('#orient').onchange = applyPaper;
 ['pw', 'ph'].forEach((id) => $('#' + id).addEventListener('input', () => { $('#preset').value = ''; persist(); }));
-$('#reshuffle').onclick = () => { $('#seed').value = Math.floor(Math.random() * 99999); resetNudges(); changed(true); };
+$('#reshuffle').onclick = () => { $('#seed').value = Math.floor(Math.random() * 99999); resetNudges(); changed(true, true); };
 $('#seed').addEventListener('input', resetNudges);
 
 function restore() {
   try {
     const s = JSON.parse(localStorage.getItem('sdw') || 'null');
-    if (!s) return;
-    for (const [id, v] of Object.entries(s.vals || {})) {
-      const el = document.getElementById(id);
-      if (!el) continue;
-      if (el.type === 'checkbox') el.checked = v; else el.value = v;
-    }
-    if (Array.isArray(s.pens) && s.pens.length) pens = s.pens;
-    if (s.assign) {
-      assign = { ...DEFAULT_ASSIGN, ...s.assign };
-      for (const [role, from] of Object.entries(ROLE_FALLBACK)) if (!(role in s.assign)) assign[role] = s.assign[from] ?? '';
-    }
-    if (s.preset !== undefined) $('#preset').value = s.preset;
-    (s.vias || []).forEach((v) => addVia(v));
+    if (s) applySettings(s);
   } catch { /* ignore corrupt state */ }
 }
 
@@ -1185,7 +1213,7 @@ $('#find').onclick = async () => {
   if (state.running) return;
   state.running = true; state.cancel = false;
   if (isMobile()) window.scrollTo({ top: 0, behavior: 'smooth' });   // show the map while it searches
-  $('#find').disabled = true; $('#stop').disabled = false; $('#export').disabled = true; $('#exportJpg').disabled = true;
+  $('#find').disabled = true; $('#stop').disabled = false; $('#export').disabled = true; $('#exportJpg').disabled = true; $('#saveMap').disabled = true;
   $('#log').textContent = '';
   const status = (s) => { $('#status').textContent = s; };
   let found = null;
@@ -1252,6 +1280,8 @@ $('#find').onclick = async () => {
     }
     log(`Found: ${path.join(' → ')}`);
     state.path = found = path;
+    state.spec = null;
+    clearUndo();
     resetNudges();
     state.fmt = {};
     renderInspector();
@@ -1268,7 +1298,7 @@ $('#find').onclick = async () => {
 // export
 $('#export').onclick = () => {
   if (!state.graph) return;
-  const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + renderSVG(state.graph);
+  const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + renderSVG(state.graph, { embed: true });
   downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), fileSlug() + '.svg');
 };
 
@@ -1309,6 +1339,217 @@ $('#exportJpg').onclick = async () => {
   }
 };
 
+// ───────────────────────── undo / redo ─────────────────────────
+// Covers everything in the sidebar plus nudges and per-article edits (not the search itself).
+const undo = { stack: [], redo: [], key: '', at: 0 };
+const undoSnapshot = () => JSON.stringify({ settings: settingsBlob(), nudge: state.nudge, fmt: state.fmt, spec: state.spec });
+function syncUndoButtons() {
+  $('#undo').disabled = !undo.stack.length;
+  $('#redo').disabled = !undo.redo.length;
+}
+// key: steps with the same key inside ~1 s count as one (typing in a field, holding an arrow key)
+function pushUndo(key = '') {
+  const now = Date.now();
+  if (key && key === undo.key && now - undo.at < 1200) { undo.at = now; return; }
+  undo.key = key; undo.at = now;
+  undo.stack.push(undoSnapshot());
+  if (undo.stack.length > 60) undo.stack.shift();
+  undo.redo = [];
+  syncUndoButtons();
+}
+function clearUndo() { undo.stack = []; undo.redo = []; undo.key = ''; syncUndoButtons(); }
+async function applyUndoState(str) {
+  const s = JSON.parse(str);
+  const before = settingsBlob().vals;
+  const specChanged = JSON.stringify(state.spec) !== JSON.stringify(s.spec);
+  applySettings(s.settings);
+  state.nudge = s.nudge; state.fmt = s.fmt;
+  if (s.spec) state.spec = s.spec;   // the exact pages of that moment, so undo needs no lookups
+  persist();
+  if (String(before.ignoreList) !== String(s.settings.vals.ignoreList)) await syncIgnore();
+  renderInspector();
+  const layoutChanged = LAYOUT_IDS.some((id) => String(before[id]) !== String(s.settings.vals[id]));
+  if (specChanged || layoutChanged) await rebuild({ structure: false });
+  else refresh();
+}
+async function stepUndo(from, to) {
+  if (!from.length || !state.graph) return;
+  to.push(undoSnapshot());
+  await applyUndoState(from.pop());
+  undo.key = '';
+  syncUndoButtons();
+}
+$('#undo').onclick = () => stepUndo(undo.stack, undo.redo);
+$('#redo').onclick = () => stepUndo(undo.redo, undo.stack);
+window.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); $('#undo').click(); }
+  else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); $('#redo').click(); }
+});
+
+// ───────────────────────── saved maps ─────────────────────────
+// A map file holds the settings, the path, the exact pages and positions, and every nudge and edit,
+// so opening it needs no Wikipedia lookups. SVG exports embed the same data in their <metadata>.
+const MAP_NS = 'https://six.bobsabayesian.io/ns/map';
+function mapSnapshot() {
+  const g = state.graph;
+  if (!g || !state.path) return null;
+  return {
+    format: 'six-degrees-map', version: 1, app: PROJECT_URL, savedAt: new Date().toISOString(),
+    settings: settingsBlob(), path: state.path, vias: [...state.vias],
+    graph: {
+      nodes: g.nodes.map((n) => ({ ...specNode(n), x: +n.sx.toFixed(3), y: +n.sy.toFixed(3) })),
+      edges: g.edges,
+    },
+    nudge: state.nudge, fmt: state.fmt,
+  };
+}
+function embeddedState(graph) {
+  const snap = graph === state.graph ? mapSnapshot() : null;
+  if (!snap) return '';
+  const json = JSON.stringify(snap).replace(/]]>/g, ']]\\u003e');
+  return `\n<sd:state xmlns:sd="${MAP_NS}"><![CDATA[${json}]]></sd:state>`;
+}
+function parseMapFromSvg(text) {
+  const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+  const el = doc.getElementsByTagNameNS(MAP_NS, 'state')[0];
+  if (!el) throw new Error('This SVG has no saved map in it. Only SVGs exported from this app carry one.');
+  return JSON.parse(el.textContent);
+}
+async function loadMap(m) {
+  if (m?.format !== 'six-degrees-map') throw new Error('This file isn’t a Six Degrees map.');
+  if (m.version > 1) log('Note: this map was saved by a newer version of the app; some parts may not load.');
+  applySettings(m.settings || {});
+  state.path = m.path;
+  state.vias = new Set(m.vias || []);
+  state.nudge = m.nudge || { nodes: {}, labels: {} };
+  state.fmt = m.fmt || {};
+  state.sel = null;
+  state.spec = { nodes: m.graph.nodes.map(specNode), edges: m.graph.edges.map((e) => ({ ...e })) };
+  const graph = {
+    nodes: m.graph.nodes.map((n) => ({ ...specNode(n), x: n.x, y: n.y, sx: n.x, sy: n.y })),
+    edges: m.graph.edges.map((e) => ({ ...e })),
+  };
+  graph.title = titleLayout(graph);
+  finalize(graph);
+  state.graph = graph;
+  clearUndo();
+  persist();
+  renderInspector();
+  show(graph);
+  $('#export').disabled = false; $('#exportJpg').disabled = false; $('#saveMap').disabled = false;
+  $('#status').textContent = `${state.path.length - 1} links: ${state.path.join(' → ')}  ·  ${graph.nodes.length} pages, ${graph.edges.length} edges`;
+  syncIgnore().catch(() => {});   // so a later rebuild respects the saved ignore list
+}
+async function openMapFile(file) {
+  const text = await file.text();
+  await loadMap(/\.svg$/i.test(file.name) || text.trimStart().startsWith('<') ? parseMapFromSvg(text) : JSON.parse(text));
+}
+const showMapError = (e) => { $('#status').textContent = 'Couldn’t open that file: ' + e.message; };
+$('#openMap').onclick = () => $('#mapFile').click();
+$('#mapFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (f) try { await openMapFile(f); } catch (err) { showMapError(err); }
+});
+$('#saveMap').onclick = () => {
+  const snap = mapSnapshot();
+  if (snap) downloadBlob(new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' }), fileSlug() + '.json');
+};
+// drop a saved map anywhere on the page
+{
+  let depth = 0;
+  const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+  window.addEventListener('dragenter', (e) => { if (hasFiles(e)) { depth++; document.body.classList.add('dropping'); } });
+  window.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; document.body.classList.remove('dropping'); } });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0; document.body.classList.remove('dropping');
+    const f = [...e.dataTransfer.files].find((x) => /\.(svg|json)$/i.test(x.name));
+    if (f) try { await openMapFile(f); } catch (err) { showMapError(err); }
+  });
+}
+
+// ───────────────────────── example maps ─────────────────────────
+const STARTERS = [
+  { file: 'starters/kevin-bacon-pythagorean-theorem.json', label: 'Kevin Bacon → Pythagorean theorem' },
+  { file: 'starters/boulder-colorado-jesus.json', label: 'Boulder, Colorado → Jesus' },
+];
+for (const st of STARTERS) $('#starter').append(new Option(st.label, st.file));
+$('#starter').addEventListener('change', async (e) => {
+  const file = e.target.value;
+  e.target.value = '';
+  if (!file) return;
+  try {
+    $('#status').textContent = 'Loading example…';
+    const r = await fetch(file);
+    if (!r.ok) throw new Error('example not found');
+    await loadMap(await r.json());
+  } catch (err) { showMapError(err); }
+});
+
+// ───────────────────────── looks (named pen + style presets) ─────────────────────────
+const allRoles = (pen, over = {}) => ({ ...Object.fromEntries(ROLES.map(([k]) => [k, pen])), frame: '', fillPath: '', fillBranch: '', ...over });
+const LOOKS = {
+  classic: {
+    label: 'Classic', pens: DEFAULT_PENS, assign: DEFAULT_ASSIGN,
+    vals: { k1: 5, k1End: 8, k2: 2, cross: true, curved: true, showBL: true, fillStyle: 'concentric', rPath: 2.2, rEnd: 3.2, rBranch: 1.2, fs: 3.2, endScale: 1.3, wrapSat: 22, wrapPath: 0 },
+  },
+  minimal: {
+    label: 'Minimal outline (one black pen)',
+    pens: [{ id: 'p1', name: 'Black', color: '#111111', width: 0.4 }],
+    assign: allRoles('p1'),
+    vals: { k1: 3, k1End: 5, k2: 0, cross: false, curved: false, showBL: false, fillStyle: 'concentric', rPath: 1.6, rEnd: 2.2, rBranch: 0.9, fs: 3.4, endScale: 1.2, wrapSat: 22, wrapPath: 0 },
+  },
+  singlepen: {
+    label: 'Single pen with labels',
+    pens: [{ id: 'p1', name: 'Black', color: '#111111', width: 0.35 }],
+    assign: allRoles('p1'),
+    vals: { k1: 5, k1End: 8, k2: 2, cross: false, curved: true, showBL: true, fillStyle: 'concentric', rPath: 2.2, rEnd: 3.2, rBranch: 1.2, fs: 3.2, endScale: 1.3, wrapSat: 22, wrapPath: 0 },
+  },
+  web: {
+    label: 'Dense web',
+    pens: [
+      { id: 'p1', name: 'Navy', color: '#1c2b5a', width: 0.25 },
+      { id: 'p2', name: 'Red', color: '#b8322a', width: 0.5 },
+      { id: 'p3', name: 'Grey', color: '#9a9a9a', width: 0.15 },
+    ],
+    assign: allRoles('p1', { title: 'p1', subtitle: 'p1', credit: 'p3', startNode: 'p2', startLabel: 'p2', endNode: 'p2', endLabel: 'p2', viaNode: 'p2', viaLabel: 'p2', pathEdge: 'p2', pathNode: 'p2', pathLabel: 'p2', branch2Edge: 'p3', branch2Node: 'p3', branch2Label: 'p3', crossEdge: 'p3' }),
+    vals: { k1: 8, k1End: 12, k2: 3, cross: true, curved: true, showBL: true, fillStyle: 'concentric', rPath: 2, rEnd: 3, rBranch: 0.9, fs: 2.8, endScale: 1.3, wrapSat: 18, wrapPath: 0 },
+  },
+  bold: {
+    label: 'Bold and filled',
+    pens: [
+      { id: 'p1', name: 'Black', color: '#111111', width: 0.5 },
+      { id: 'p2', name: 'Red', color: '#c0392b', width: 0.8 },
+      { id: 'p3', name: 'Blue', color: '#1f5fbf', width: 0.6 },
+      { id: 'p4', name: 'Grey', color: '#8a8a8a', width: 0.2 },
+    ],
+    assign: allRoles('p1', { credit: 'p4', pathEdge: 'p2', pathNode: 'p2', pathLabel: 'p1', startNode: 'p2', endNode: 'p2', viaNode: 'p2', fillPath: 'p2', branchEdge: 'p3', branchNode: 'p3', fillBranch: 'p3', branch2Edge: 'p4', branch2Node: 'p4', branch2Label: 'p4', crossEdge: 'p4' }),
+    vals: { k1: 4, k1End: 6, k2: 1, cross: false, curved: true, showBL: true, fillStyle: 'concentric', rPath: 3, rEnd: 4.2, rBranch: 1.6, fs: 3.4, endScale: 1.3, wrapSat: 22, wrapPath: 0 },
+  },
+};
+for (const [key, L] of Object.entries(LOOKS)) $('#look').append(new Option(L.label, key));
+function applyLook(key) {
+  const L = LOOKS[key];
+  if (!L) return;
+  pushUndo();
+  const before = settingsBlob().vals;
+  for (const [id, v] of Object.entries(L.vals)) {
+    const el = $('#' + id);
+    if (el.type === 'checkbox') el.checked = v; else el.value = v;
+  }
+  pens = structuredClone(L.pens);
+  assign = { ...L.assign };
+  renderPenUI(); syncLinkUI();
+  const structural = STRUCTURE_IDS.some((id) => String(before[id]) !== String($('#' + id).type === 'checkbox' ? $('#' + id).checked : $('#' + id).value));
+  changed(true, structural);
+}
+$('#look').addEventListener('change', (e) => { const k = e.target.value; e.target.value = ''; if (k) applyLook(k); });
+
 restore();
 renderPenUI();
 let preStrict = null;
@@ -1323,7 +1564,7 @@ $('#strict').addEventListener('change', () => {
   }
   syncLinkUI();
   persist();
-  changed(true);
+  changed(true, true);
 });
 function syncLinkUI() {
   const m = $('#linkMode').value;

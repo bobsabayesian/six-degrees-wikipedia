@@ -12,6 +12,15 @@
   <h1><img src="assets/logo.png" alt="" width="40" height="38"> Six Degrees of Wikipedia</h1>
   <p class="about-link"><a href="six-about.html">About this project &amp; get a print →</a></p>
 
+  <section class="starters">
+    <label>Start from an example
+      <select id="starter"><option value="">Load an example map…</option></select>
+    </label>
+    <button id="openMap" type="button">Open saved map…</button>
+    <input type="file" id="mapFile" accept=".json,.svg,application/json,image/svg+xml" hidden>
+    <p class="hint">Or drop a saved map (an SVG exported from here, or a .json) anywhere on the page.</p>
+  </section>
+
   <section>
     <label>From
       <div class="ac"><input id="topicA" data-save placeholder="e.g. Kevin Bacon" autocomplete="off"><ul class="suggest"></ul></div>
@@ -171,6 +180,10 @@
 
   <details open>
     <summary>Pens</summary>
+    <label>Look
+      <select id="look"><option value="">Choose a look…</option></select>
+    </label>
+    <p class="hint">A look replaces the pens and the map style (not the paper, title or topics). Undo brings back what you had.</p>
     <div id="pens"></div>
     <button id="addPen">+ Add pen</button>
     <h3>Assign pens</h3>
@@ -183,8 +196,9 @@
       <button id="export" class="primary" disabled>Download SVG</button>
       <button id="exportJpg" disabled>Download JPG</button>
     </div>
+    <button id="saveMap" type="button" disabled>Save map (.json)</button>
     <label>JPG width (px) <input type="number" id="jpgW" data-save value="3000" min="500" max="12000" step="100"></label>
-    <p class="hint">Labels are drawn with single-stroke Hershey fonts, so they plot as real pen lines (no Inkscape text conversion needed).</p>
+    <p class="hint">Labels are drawn with single-stroke Hershey fonts, so they plot as real pen lines (no Inkscape text conversion needed). SVGs exported here also carry the whole map: open one again later (or drop it on the page) to keep editing without searching.</p>
   </section>
 </aside>
 
@@ -204,6 +218,7 @@
     </span>
     <button id="insResetPos" title="Undo dragging/nudging for this item">Reset position</button><button id="insReset" title="Undo text, size and label edits">Reset format</button><button id="insClose" title="Deselect">✕</button>
   </div>
+  <div id="undoBar"><button id="undo" type="button" disabled>↶ Undo</button><button id="redo" type="button" disabled>↷ Redo</button></div>
   <div id="status"></div>
   <pre id="log"></pre>
 </main>
