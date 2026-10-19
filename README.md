@@ -24,6 +24,8 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 
 ## Controls
 
+The sidebar has four collapsible groups, **Map**, **Paper & style**, **Title** and **Pens**, each with a one-line summary on its heading (for example “Any link · 5 branches” or “A4 landscape · Simplex”). Which groups are open is remembered; on phones they all start closed. The download buttons stay pinned to the bottom of the sidebar.
+
 | Panel | What it does |
 |---|---|
 | **Search** | Max expansions and frontier cap. Higher values find shorter paths but make more API requests. |
@@ -38,13 +40,14 @@ The only external dependency is [d3](https://d3js.org/) v7, loaded from a CDN, s
 ### Saving, examples and looks
 
 - **Saved maps:** *Save map (.json)* stores everything: the settings, the path, the exact pages and their positions, your nudges and edits. SVGs exported here carry the same data inside their `<metadata>`, so an exported SVG doubles as a save file. Open either with *Open saved map…* or by dropping it anywhere on the page. Opening a saved map needs no Wikipedia lookups, and changing the paper, fonts, sizes or pens afterwards keeps the same pages (only the branch settings choose new ones).
-- **Examples:** *Start from an example* loads ready-made maps (`starters/*.json`, made with this app) so you can try everything before searching.
+- **Examples:** *Start from an example* loads a ready-made map (`starters/*.json`, made with this app, using the first links from each article's infobox and lead) so you can try everything before searching.
 - **Looks:** the *Look* menu in Pens replaces the pens and the map style in one step (Classic, Minimal outline, Single pen with labels, Dense web, Bold and filled). It leaves the paper, title and topics alone.
 - **Undo / Redo** (buttons, or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z): covers looks, pen changes, dragging and nudging, label edits, ignoring a page and loading a map's edits. It doesn't cover running a new search.
 
 ### Editing the map
 
 - **Drag** any node or label to nudge it. Click one and use the **arrow keys** (Shift = bigger steps). Double-click to reset it. Moving one item doesn't disturb the rest of the layout.
+- **Keyboard and screen readers:** the *Edit page* menu above the map selects any page by name; then the arrow keys nudge it (Shift = bigger steps) and Esc closes the editor. Topic fields are accessible comboboxes (arrow keys and Enter pick a suggestion), the map has a text description, focus is always visible, and motion is reduced if your system asks for that. The page warns before you leave with unsaved edits.
 - **Click** an element to open its edit bar: change the label text (Enter = new line), force 1/2/3 lines, scale text or node size, hide/show the label, or **Ignore page**.
 - **On a phone or tablet** the map stays pinned at the top while you scroll through the settings below it, so changes show live. Drag nodes and labels with your finger; tapping one opens the edit bar as a bottom sheet with on-screen nudge buttons.
 - Labels are automatically placed to avoid each other, node circles, edges, the title and the margins.

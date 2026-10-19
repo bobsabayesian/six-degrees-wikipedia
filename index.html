@@ -3,32 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1b1a" media="(prefers-color-scheme: dark)">
 <title>Six Degrees of Wikipedia – Plotter Map</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<aside id="panel">
-  <h1><img src="assets/logo.png" alt="" width="40" height="38"> Six Degrees of Wikipedia</h1>
+<a class="skip-link" href="#stage">Skip to the map</a>
+<aside id="panel" aria-label="Settings">
+  <h1><img src="assets/logo.png" alt="" width="40" height="38"> <span translate="no">Six Degrees of Wikipedia</span></h1>
   <p class="about-link"><a href="six-about.html">About this project &amp; get a print →</a></p>
 
-  <section class="starters">
+  <section class="starters" aria-label="Examples and saved maps">
     <label>Start from an example
       <select id="starter"><option value="">Load an example map…</option></select>
     </label>
     <button id="openMap" type="button">Open saved map…</button>
-    <input type="file" id="mapFile" accept=".json,.svg,application/json,image/svg+xml" hidden>
+    <input type="file" id="mapFile" aria-label="Open a saved map file" accept=".json,.svg,application/json,image/svg+xml" hidden>
     <p class="hint">Or drop a saved map (an SVG exported from here, or a .json) anywhere on the page.</p>
   </section>
 
-  <section>
+  <section aria-labelledby="h-topics">
+    <h2 id="h-topics" class="plain">Topics</h2>
     <label>From
-      <div class="ac"><input id="topicA" data-save placeholder="e.g. Kevin Bacon" autocomplete="off"><ul class="suggest"></ul></div>
+      <div class="ac"><input id="topicA" data-save placeholder="e.g. Kevin Bacon" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugA"><ul class="suggest" id="sugA" role="listbox" aria-label="Suggestions for From"></ul></div>
     </label>
     <div id="vias"></div>
     <button id="addVia" type="button" class="small">+ Add via topic</button>
     <label>To
-      <div class="ac"><input id="topicB" data-save placeholder="e.g. Pythagorean theorem" autocomplete="off"><ul class="suggest"></ul></div>
+      <div class="ac"><input id="topicB" data-save placeholder="e.g. Pythagorean theorem" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugB"><ul class="suggest" id="sugB" role="listbox" aria-label="Suggestions for To"></ul></div>
     </label>
     <div class="row">
       <button id="find" class="primary">Find connection</button>
@@ -36,8 +41,9 @@
     </div>
   </section>
 
-  <details>
-    <summary>Search</summary>
+  <details class="group" id="g-map" open>
+    <summary><h2>Map</h2><span class="badge" data-badge="map"></span></summary>
+    <h3>Search</h3>
     <label>Max expansions <input type="number" id="maxExp" data-save value="10" min="2" max="20"></label>
     <label>Frontier cap <input type="number" id="cap" data-save value="120" min="10" max="1000"></label>
     <p class="hint">Bidirectional search: outgoing links from the first topic, incoming links to the second. A higher cap finds shorter paths but makes more API requests.</p>
@@ -47,18 +53,12 @@
       <label>Pages read per level <input type="number" id="strictCap" data-save value="60" min="10" max="500"></label>
     </div>
     <p class="hint">Strict mode makes every step of the path use only the links chosen under Branches (turning it on sets them to the first 50 from the infobox and main text). It reads each page's HTML, so it's slow, searches forward only, and gives up if no route exists within the max jumps.</p>
-  </details>
-
-  <details open>
-    <summary>Ignore list</summary>
+    <h3>Ignore list</h3>
     <label>Pages to leave out (one per line)
       <textarea id="ignoreList" data-save rows="3" placeholder="The New York Times&#10;United States"></textarea>
     </label>
     <p class="hint">Ignored pages never appear as branches, and the search won't route through them. Redirects (e.g. “NYT”) are resolved. You can also click a page on the map and choose “Ignore page”. If an ignored page is on the current path, click Find again.</p>
-  </details>
-
-  <details open>
-    <summary>Branches</summary>
+    <h3>Branches</h3>
     <label>Take links from
       <select id="linkSource" data-save>
         <option value="any" selected>Any link (fastest)</option>
@@ -82,14 +82,14 @@
     <label>Sub-branches per branch <input type="number" id="k2" data-save value="2" min="0" max="10"></label>
     <label class="chk"><input type="checkbox" id="cross" data-save checked> Draw cross-links between known pages</label>
     <label>Layout seed
-      <span class="row"><input type="number" id="seed" data-save value="1" min="0"><button id="reshuffle" title="New random layout">🎲</button></span>
+      <span class="row"><input type="number" id="seed" data-save value="1" min="0"><button id="reshuffle" title="New random layout" aria-label="New random layout">🎲</button></span>
     </label>
     <button id="resetNudges" type="button">Reset nudges</button>
     <p class="hint">Nudge: drag any node or label on the map. Click one, then use the arrow keys (Shift = bigger steps). Double-click to reset that item. Moving one item doesn't disturb the rest; 🎲 or a new seed starts over.</p>
   </details>
 
-  <details open>
-    <summary>Paper &amp; style</summary>
+  <details class="group" id="g-paper">
+    <summary><h2>Paper &amp; style</h2><span class="badge" data-badge="paper"></span></summary>
     <div class="row">
       <label>Paper
         <select id="preset">
@@ -146,10 +146,11 @@
     </label>
     <label class="chk"><input type="checkbox" id="curved" data-save checked> Curved edges</label>
     <label class="chk"><input type="checkbox" id="showBL" data-save checked> Label branch nodes</label>
+    <label>JPG width (px) <input type="number" id="jpgW" data-save value="3000" min="500" max="12000" step="100"></label>
   </details>
 
-  <details open>
-    <summary>Title</summary>
+  <details class="group" id="g-title">
+    <summary><h2>Title</h2><span class="badge" data-badge="title"></span></summary>
     <label class="chk"><input type="checkbox" id="showCredit" data-save checked> Credit line (“Made with Six Degrees of Wikipedia…”)</label>
     <label class="chk"><input type="checkbox" id="showTitle" data-save checked> Show title</label>
     <label>Title text <input id="titleText" data-save placeholder="Auto: “A to B”"></label>
@@ -178,8 +179,8 @@
     </div>
   </details>
 
-  <details open>
-    <summary>Pens</summary>
+  <details class="group" id="g-pens">
+    <summary><h2>Pens</h2><span class="badge" data-badge="pens"></span></summary>
     <label>Look
       <select id="look"><option value="">Choose a look…</option></select>
     </label>
@@ -191,20 +192,19 @@
     <p class="hint">Each pen exports as its own layer (<code>1 name</code>, <code>2 name</code>…), the naming AxiDraw/Inkscape uses for multi-pen plots. Layer order = pen order.</p>
   </details>
 
-  <section>
+  <section class="export" aria-label="Export">
     <div class="row">
       <button id="export" class="primary" disabled>Download SVG</button>
       <button id="exportJpg" disabled>Download JPG</button>
     </div>
     <button id="saveMap" type="button" disabled>Save map (.json)</button>
-    <label>JPG width (px) <input type="number" id="jpgW" data-save value="3000" min="500" max="12000" step="100"></label>
-    <p class="hint">Labels are drawn with single-stroke Hershey fonts, so they plot as real pen lines (no Inkscape text conversion needed). SVGs exported here also carry the whole map: open one again later (or drop it on the page) to keep editing without searching.</p>
+    <p class="hint">Labels are single-stroke Hershey lines, so they plot as real pen lines. SVGs exported here also carry the whole map: open one later (or drop it on the page) to keep editing.</p>
   </section>
 </aside>
 
 <main>
-  <div id="stage"><div id="paper"><p class="empty">Pick two Wikipedia topics and hit “Find connection”.</p></div></div>
-  <div id="inspector" hidden>
+  <div id="stage" tabindex="-1"><div id="paper" role="region" aria-label="Map preview"><p class="empty">Pick two Wikipedia topics and hit “Find connection”.</p></div></div>
+  <div id="inspector" role="region" aria-label="Edit the selected page" hidden>
     <strong id="insName"></strong>
     <label>Label text <textarea id="insText" rows="2" title="Enter = start a new line"></textarea></label>
     <span class="grp">Lines
@@ -216,11 +216,11 @@
     <button id="insIgnore" title="Add this page to the ignore list">Ignore page</button><span class="grp">Nudge
       <button data-nudge="-1,0" aria-label="Left">◀</button><button data-nudge="0,-1" aria-label="Up">▲</button><button data-nudge="0,1" aria-label="Down">▼</button><button data-nudge="1,0" aria-label="Right">▶</button>
     </span>
-    <button id="insResetPos" title="Undo dragging/nudging for this item">Reset position</button><button id="insReset" title="Undo text, size and label edits">Reset format</button><button id="insClose" title="Deselect">✕</button>
+    <button id="insResetPos" title="Undo dragging/nudging for this item">Reset position</button><button id="insReset" title="Undo text, size and label edits">Reset format</button><button id="insClose" title="Close" aria-label="Close editor">✕</button>
   </div>
-  <div id="undoBar"><button id="undo" type="button" disabled>↶ Undo</button><button id="redo" type="button" disabled>↷ Redo</button></div>
-  <div id="status"></div>
-  <pre id="log"></pre>
+  <div id="undoBar"><button id="undo" type="button" disabled>↶ Undo</button><button id="redo" type="button" disabled>↷ Redo</button><label class="pick">Edit page <select id="pickPage" disabled><option value="">Choose a page…</option></select></label></div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <pre id="log" role="log" aria-live="off" aria-label="Search log" tabindex="0"></pre>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>

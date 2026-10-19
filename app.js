@@ -747,10 +747,10 @@ function renderPenUI() {
     const row = document.createElement('div');
     row.className = 'pen';
     row.innerHTML = `<span title="Layer number">${i + 1}</span>
-      <input type="color" value="${p.color}">
-      <input class="name" value="${esc(p.name)}">
-      <input class="w" type="number" step="0.05" min="0.05" value="${p.width}" title="Line width (mm)">
-      <button title="Remove pen">✕</button>`;
+      <input type="color" value="${p.color}" aria-label="Pen ${i + 1} colour">
+      <input class="name" value="${esc(p.name)}" aria-label="Pen ${i + 1} name" spellcheck="false">
+      <input class="w" type="number" step="0.05" min="0.05" value="${p.width}" title="Line width (mm)" aria-label="Pen ${i + 1} line width in millimetres">
+      <button type="button" title="Remove pen" aria-label="Remove pen ${i + 1}">✕</button>`;
     const [, color, name, w, del] = row.children;
     color.oninput = () => { pushUndo('pen'); p.color = color.value; changed(false); };
     name.oninput = () => { pushUndo('pen'); p.name = name.value; renderRoles(); changed(false); };
@@ -769,7 +769,7 @@ function renderRoles() {
   const roles = $('#roles');
   roles.innerHTML = '';
   for (const [key, label] of ROLES) {
-    const row = document.createElement('div');
+    const row = document.createElement('label');
     row.className = 'role';
     const opts = ['<option value="">— none —</option>']
       .concat(pens.map((p, i) => `<option value="${p.id}">${i + 1} ${esc(p.name)}</option>`)).join('');
@@ -897,8 +897,37 @@ function show(graph) {
   applyPaperColor();
   paper.innerHTML = renderSVG(graph);
   paper.style.setProperty('--ar', num('pw') / num('ph'));
-  if (graph === state.graph && !graph.preview) addHandles(graph, paper.querySelector('svg'));
+  const svg = paper.querySelector('svg');
+  svg?.setAttribute('role', 'img');
+  svg?.setAttribute('aria-label', graph === state.graph && state.path ? `Map connecting ${state.path.join(', then ')}` : 'Map being built');
+  if (graph === state.graph && !graph.preview) { addHandles(graph, svg); syncPickPage(); }
 }
+
+// A keyboard- and screen-reader-friendly way to select any page on the map
+function syncPickPage() {
+  const sel = $('#pickPage'), g = state.graph;
+  if (!g) { sel.disabled = true; return; }
+  const key = g.nodes.map((n) => n.id).join('|');
+  if (sel.dataset.key !== key) {
+    sel.dataset.key = key;
+    sel.length = 1;
+    for (const [kind, label] of [['path', 'On the path'], ['b1', 'Branches'], ['b2', 'Sub-branches']]) {
+      const og = document.createElement('optgroup');
+      og.label = label;
+      for (const n of g.nodes.filter((x) => x.kind === kind)) og.append(new Option(n.id, n.id));
+      if (og.children.length) sel.append(og);
+    }
+  }
+  sel.disabled = false;
+  sel.value = state.sel?.id || '';
+}
+$('#pickPage').addEventListener('change', (e) => {
+  const id = e.target.value;
+  if (!id) return;
+  state.sel = { kind: 'node', id };
+  renderInspector();
+  refresh();
+});
 
 // Invisible hit areas for dragging (UI only; never part of the exported SVG)
 function addHandles(graph, svg) {
@@ -916,7 +945,7 @@ function addHandles(graph, svg) {
   for (const n of graph.nodes) {
     out += `<circle class="${cls('node', n.id)}" data-h="node" data-id="${esc(n.id)}" cx="${fmt(n.x)}" cy="${fmt(n.y)}" r="${fmt(Math.max(nodeRadius(n) + 1, minR))}"/>`;
   }
-  svg.insertAdjacentHTML('beforeend', `<g id="nudge">${out}</g>`);
+  svg.insertAdjacentHTML('beforeend', `<g id="nudge" aria-hidden="true">${out}</g>`);
 }
 
 // ───────────────────────── nudging (drag / arrow keys) ─────────────────────────
@@ -1117,6 +1146,20 @@ function applySettings(s) {
 }
 function persist() {
   try { localStorage.setItem('sdw', JSON.stringify(settingsBlob())); } catch { /* storage unavailable */ }
+  updateBadges();
+}
+// the one-line summary shown on each collapsed group
+function updateBadges() {
+  const set = (k, t) => { const el = document.querySelector(`[data-badge="${k}"]`); if (el) el.textContent = t; };
+  const optText = (id) => $('#' + id).selectedOptions?.[0]?.textContent ?? '';
+  const source = { any: 'Any link', both: 'Infobox + text', body: 'Main text', info: 'Infobox' }[$('#linkSource').value] ?? '';
+  const ignored = $('#ignoreList').value.split('\n').filter((l) => l.trim()).length;
+  set('map', [chk('strict') ? 'Strict' : source, `${num('k1')} branches`, ignored ? `${ignored} ignored` : ''].filter(Boolean).join(' · '));
+  const w = num('pw'), h = num('ph');
+  const paper = $('#preset').value ? optText('preset') : `${w}×${h} mm`;
+  set('paper', `${paper} ${w >= h ? 'landscape' : 'portrait'} · ${optText('font')}`);
+  set('title', chk('showTitle') ? `${num('titleSize')} mm · ${optText('titleFont')}` : 'Off');
+  set('pens', `${pens.length} pen${pens.length === 1 ? '' : 's'}`);
 }
 // relayout=true → recompute graph/layout; false → restyle only
 function changed(relayout, structure = true) {
@@ -1156,29 +1199,67 @@ function restore() {
 }
 
 // autocomplete
+let acUid = 0;
 function wireAutocomplete(box) {
   const input = box.querySelector('input'), list = box.querySelector('.suggest');
-  let seq = 0;
+  if (!list.id) list.id = 'sug-' + ++acUid;
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-controls', list.id);
+  input.setAttribute('aria-expanded', 'false');
+  list.setAttribute('role', 'listbox');
+  let seq = 0, active = -1;
+  const items = () => [...list.children];
+  const close = () => {
+    list.innerHTML = ''; active = -1;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  };
+  const setActive = (i) => {
+    const it = items();
+    if (!it.length) return;
+    active = (i + it.length) % it.length;
+    it.forEach((li, k) => li.setAttribute('aria-selected', String(k === active)));
+    input.setAttribute('aria-activedescendant', it[active].id);
+    it[active].scrollIntoView?.({ block: 'nearest' });
+  };
+  const choose = (title) => { input.value = title; close(); persist(); };
   const lookup = debounce(async () => {
     const q = input.value.trim();
     const mine = ++seq;
-    if (q.length < 2) { list.innerHTML = ''; return; }
+    if (q.length < 2) { close(); return; }
     try {
       const j = await api({ action: 'query', generator: 'prefixsearch', gpssearch: q, gpslimit: '7', gpsnamespace: '0', prop: 'description' });
       if (mine !== seq) return;
       const pages = (j.query?.pages ?? []).sort((a, b) => a.index - b.index);
-      list.innerHTML = '';
-      for (const p of pages) {
+      close();
+      pages.forEach((p, i) => {
         const li = document.createElement('li');
+        li.id = `${list.id}-${i}`;
+        li.setAttribute('role', 'option');
+        li.setAttribute('aria-selected', 'false');
         li.innerHTML = `${esc(p.title)}<small>${esc(p.description || '')}</small>`;
-        li.onpointerdown = (e) => { e.preventDefault(); input.value = p.title; list.innerHTML = ''; persist(); };
+        li.onpointerdown = (e) => { e.preventDefault(); choose(p.title); };
+        li.dataset.title = p.title;
         list.appendChild(li);
-      }
+      });
+      if (pages.length) input.setAttribute('aria-expanded', 'true');
     } catch { /* ignore */ }
   }, 180);
   input.addEventListener('input', lookup);
-  input.addEventListener('blur', () => { seq++; setTimeout(() => (list.innerHTML = ''), 100); });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { list.innerHTML = ''; $('#find').click(); } });
+  input.addEventListener('blur', () => { seq++; setTimeout(close, 100); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!items().length) return;
+      e.preventDefault();
+      setActive(active < 0 ? (e.key === 'ArrowDown' ? 0 : -1) : active + (e.key === 'ArrowDown' ? 1 : -1));
+    } else if (e.key === 'Escape') {
+      close();
+    } else if (e.key === 'Enter') {
+      if (active >= 0) { e.preventDefault(); choose(items()[active].dataset.title); }
+      else { close(); $('#find').click(); }
+    }
+  });
 }
 document.querySelectorAll('.ac').forEach(wireAutocomplete);
 
@@ -1195,7 +1276,7 @@ $('#ignoreList').addEventListener('input', debounce(async () => {
 function addVia(value = '') {
   const row = document.createElement('div');
   row.className = 'viaRow';
-  row.innerHTML = '<div class="ac"><input class="via" placeholder="Must pass through…" autocomplete="off"><ul class="suggest"></ul></div><button title="Remove">✕</button>';
+  row.innerHTML = '<div class="ac"><input class="via" placeholder="Must pass through…" autocomplete="off" spellcheck="false" aria-label="Via topic (the path must pass through it)"><ul class="suggest" aria-label="Suggestions for via topic"></ul></div><button type="button" title="Remove" aria-label="Remove this via topic">✕</button>';
   const input = row.querySelector('input');
   input.value = value;
   input.addEventListener('input', persist);
@@ -1212,7 +1293,7 @@ $('#stop').onclick = () => { state.cancel = true; };
 $('#find').onclick = async () => {
   if (state.running) return;
   state.running = true; state.cancel = false;
-  if (isMobile()) window.scrollTo({ top: 0, behavior: 'smooth' });   // show the map while it searches
+  if (isMobile()) window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });   // show the map while it searches
   $('#find').disabled = true; $('#stop').disabled = false; $('#export').disabled = true; $('#exportJpg').disabled = true; $('#saveMap').disabled = true;
   $('#log').textContent = '';
   const status = (s) => { $('#status').textContent = s; };
@@ -1282,6 +1363,7 @@ $('#find').onclick = async () => {
     state.path = found = path;
     state.spec = null;
     clearUndo();
+    state.dirty = true;   // a search is worth saving
     resetNudges();
     state.fmt = {};
     renderInspector();
@@ -1300,6 +1382,7 @@ $('#export').onclick = () => {
   if (!state.graph) return;
   const svg = '<?xml version="1.0" encoding="UTF-8"?>\n' + renderSVG(state.graph, { embed: true });
   downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), fileSlug() + '.svg');
+  state.dirty = false;   // the SVG carries the whole map
 };
 
 function downloadBlob(blob, name) {
@@ -1352,12 +1435,13 @@ function pushUndo(key = '') {
   const now = Date.now();
   if (key && key === undo.key && now - undo.at < 1200) { undo.at = now; return; }
   undo.key = key; undo.at = now;
+  state.dirty = true;
   undo.stack.push(undoSnapshot());
   if (undo.stack.length > 60) undo.stack.shift();
   undo.redo = [];
   syncUndoButtons();
 }
-function clearUndo() { undo.stack = []; undo.redo = []; undo.key = ''; syncUndoButtons(); }
+function clearUndo() { undo.stack = []; undo.redo = []; undo.key = ''; state.dirty = false; syncUndoButtons(); }
 async function applyUndoState(str) {
   const s = JSON.parse(str);
   const before = settingsBlob().vals;
@@ -1455,8 +1539,14 @@ $('#mapFile').addEventListener('change', async (e) => {
 });
 $('#saveMap').onclick = () => {
   const snap = mapSnapshot();
-  if (snap) downloadBlob(new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' }), fileSlug() + '.json');
+  if (snap) { downloadBlob(new Blob([JSON.stringify(snap, null, 1)], { type: 'application/json' }), fileSlug() + '.json'); state.dirty = false; }
 };
+window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+// Escape closes the editor
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !state.sel || /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  state.sel = null; renderInspector(); refresh();
+});
 // drop a saved map anywhere on the page
 {
   let depth = 0;
@@ -1475,8 +1565,7 @@ $('#saveMap').onclick = () => {
 
 // ───────────────────────── example maps ─────────────────────────
 const STARTERS = [
-  { file: 'starters/kevin-bacon-pythagorean-theorem.json', label: 'Kevin Bacon → Pythagorean theorem' },
-  { file: 'starters/boulder-colorado-jesus.json', label: 'Boulder, Colorado → Jesus' },
+  { file: 'starters/donald-trump-jeffrey-epstein.json', label: 'Donald Trump → Jeffrey Epstein' },
 ];
 for (const st of STARTERS) $('#starter').append(new Option(st.label, st.file));
 $('#starter').addEventListener('change', async (e) => {
@@ -1578,4 +1667,17 @@ $('#linkSource').addEventListener('input', syncLinkUI);
 syncLinkUI();
 applyPaperColor();
 const isMobile = () => matchMedia('(max-width: 800px)').matches;
-if (isMobile()) document.querySelectorAll('#panel details').forEach((d) => { d.open = false; });
+{
+  const KEY = 'sdw-open';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { /* none */ }
+  document.querySelectorAll('details.group').forEach((d) => {
+    if (isMobile()) d.open = false;
+    else if (d.id in saved) d.open = saved[d.id];
+    setTimeout(() => d.addEventListener('toggle', () => {
+      if (isMobile()) return;
+      try { saved[d.id] = d.open; localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* ignore */ }
+    }), 200);
+  });
+}
+updateBadges();
